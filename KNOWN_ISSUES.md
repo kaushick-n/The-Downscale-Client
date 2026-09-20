@@ -5,7 +5,7 @@ Reviewed 2026-09-20. Replaces earlier placeholder issue entries.
 | Area | Observed limitation | Follow-up |
 | --- | --- | --- |
 | Session view | Displays local session metadata, not an actual remote shell/desktop | Clarify scope if real workspace transport is added |
-| Styling consistency | Portal retains its compact fleet list; new admin cards are in a different repository | Apply a separate portal design change if requested |
+| UI scope | Portal uses a dark theme and compact fleet list; admin uses a separate larger neutral/green design | Keep behavior consistent without assuming shared global styling |
 | Authentication persistence | Tokens are held only in memory; refresh signs the user out | Treat as current behavior when designing recovery |
 | Sign-out semantics | Account sign-out is local; workspace logout hibernates but does not revoke the bearer token | Add server revocation if needed |
 | Production transport | Default URL is HTTP and derives WS; Compose has no TLS | Configure HTTPS/WSS and allowed origins for deployment |
@@ -14,7 +14,7 @@ Reviewed 2026-09-20. Replaces earlier placeholder issue entries.
 
 The backend already honors `SHIFT_TIMEZONE`, performs conditional single-use invitation redemption, and offers first-admin signup. Earlier statements about missing implementations should not be treated as confirmed defects.
 
-Demo data was removed from the local shared Docker database on 2026-09-20. No portal-side demo filtering or employee-ID restriction is required. See the main project's README for the retained records and backup.
+Demo data was removed from the local shared Docker database on 2026-09-20. No portal-side demo filtering or employee-ID restriction is required. See the main project's README for the retained records and backup. For backend `DEMO_MODE`, shift cutoff, and snapshot limitations that affect the portal, see the main project's [KNOWN_ISSUES.md](../The-Downscale-Demon/KNOWN_ISSUES.md).
 
 ## Snapshot/demo behavior
 
@@ -23,3 +23,9 @@ Exact timestamps for old snapshots were never recorded; only their filename date
 Demo settings persist in the backend until disabled. The regular scheduler can hibernate an out-of-shift demo workspace within 30 seconds; **Apply & evaluate now** makes it immediate. Disabling demo restores the real clock and checks the real shift. Account expiry is unaffected.
 
 Resolved in this update: hardcoded active-session timezone, compact snapshot-list layout, and missing mobile viewport metadata. The fleet list itself remains the existing portal design; snapshot cards now match the admin vault structure.
+
+## Grouped history and troubleshooting
+
+One card per workspace is intentional; all captures remain available in its dropdown. Legacy records from the same date have no reliable time ordering and use a stable snapshot-ID tie-breaker. Selection changes displayed details, not the historical memory image restored by the backend.
+
+The portal now reports unavailable demo capability explicitly. If the old interface remains visible, open port 5173, hard-refresh, and sign in again. A port conflict is surfaced by Vite's strict-port configuration. Check the configured API base and matching API/worker `DEMO_MODE=1` if simulation is unavailable. See [README](README.md#missing-demo-controls-or-stale-ui).

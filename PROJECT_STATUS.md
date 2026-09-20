@@ -1,39 +1,33 @@
 # Project status
 
-Updated 2026-09-20 from source inspection.
+Reviewed 2026-09-20 against current source and recorded implementation checks.
 
 ## Implemented
 
-- Invitation signup, login, first Chief Architect signup, and readable API validation errors.
-- In-memory bearer authentication with REST/socket expiry handling.
-- Owned-workspace selection and server-authorized start/restore.
-- Workspace hibernation/logout and targeted termination handling.
-- Exponential WebSocket reconnect, reconnect/focus reconciliation, and stale-refresh guards.
-- Authorized fleet, backend billing estimates, and retained snapshot metadata.
-- Playwright coverage with API/WebSocket mocks in `tests/portal.spec.js`.
+- Login, invitation signup, first Chief Architect signup, and readable field errors.
+- In-memory bearer auth, HTTP/socket expiry handling, owned-workspace picker, and server-authorized start/restore.
+- Hibernation/logout, targeted session termination, exponential reconnect, and reconnect/focus reconciliation.
+- Server-provided fleet, billing estimates, timezone, and simulated snapshot metadata.
+- Per-workspace demo toggle, fixed date/time, CPU and running/idle controls, presets, and immediate evaluation.
+- Visible unavailable-demo feedback when the connected backend does not advertise simulation.
+- Grouped snapshot history: one card per instance, newest-first dropdown, selection of older captures, search, actual/demo timestamp distinction, and legacy date-only fallback.
+- Larger snapshot text, mobile viewport metadata, and strict development port 5173.
 
-## Latest shared-backend changes
+## UI scope
 
-The main project removed six legacy demo instances, seven related snapshots, and 17 related events on 2026-09-20. Employee `001`, its `hail mary` and `hail santa` workspaces, and the existing administrator were preserved. This portal reads that cleaned backend data according to role; no hardcoded whitelist was added.
+This portal retains its dark theme and existing fleet list. The main project's command center has the separate larger sans-serif, neutral/green design, structured shift rows, and savings-first analytics. Snapshot grouping works in both apps; the admin redesign does not replace the portal theme.
 
-Responsive fleet cards were implemented in the main project's admin frontend only. This portal still uses its existing fleet list and workspace picker. No portal source changes were made in that UI/data task.
+## Recorded validation
 
-## Validation status
+The portal production build passed. All 10 Playwright tests passed together after grouped snapshot history was implemented. The demo test checks newest-first dropdown values, switching to legacy metadata, simulation requests, session cutoff, search, disabling demo, and desktop/mobile overflow. Existing cases cover authentication, invitations, expiry, and reconciliation. Browser traffic is mocked; these results are not a full live-account integration test.
 
-The admin build, Docker deployment, mocked desktop/mobile browser smoke checks, and live database cleanup assertions passed in the main project. Those checks do not establish portal test results. The portal build and Playwright suite were not rerun for the earlier documentation-only refresh; see the latest update below.
+Separate backend work recorded 5 demo tests, 7 integration tests, and 1 first-admin test passing. A mobile-device viewport check also passed. These are prior implementation results; this documentation-only update checks Markdown rather than rerunning application suites.
+
+## Shared data history
+
+The September 20 cleanup preserved employee `001`, both `hail` workspaces, and the administrator while removing six legacy demo instances and related records. The later migration preserved the four snapshots present at that time. Those are historical counts, not a current inventory or provisioning restriction. Snapshot grouping does not delete stored snapshots.
 
 ## Remaining work
 
-See [known issues](KNOWN_ISSUES.md) for timezone labeling, session-view scope, production transport, and live integration coverage. No percentage-complete estimate is assigned.
-
-## Latest portal snapshot/demo update
-
-Portal source now includes the demo toggle for owned workspaces, date/time and CPU/activity inputs, presets, and immediate shift evaluation. Both apps render the new searchable snapshot vault with timestamp distinctions and unique references. The active-session timezone is server-provided and the portal has a mobile viewport declaration.
-
-The production build passed. All 9 pre-existing Playwright cases passed with the vault selector updated for the new UI, and the new `tests/demo.spec.js` case passed. That test covers settings requests, CPU preset, immediate session termination, legacy/new snapshot times, search, no overflow at desktop/mobile widths, and disabling demo. Backend tests separately cover authorization, server gating, scheduler parity, clock reset, timestamp accuracy, and legacy behavior.
-
-No live user workspace was toggled or hibernated for validation. Both retained workspaces and four old snapshots were preserved through the backed-up schema migration.
-
-## Grouped snapshot history
-
-The vault now shows one card per instance in both apps. A snapshot-history dropdown lists retained captures newest first by actual creation time (legacy records use the known filename date), with the latest selected initially. Selecting an older capture updates the details without creating duplicate workspace cards. Main vault text is 16px, secondary labels are 14px, and workspace headings are 22px. Search matches workspace names, IDs, and filenames while retaining the full history dropdown. No snapshot records are deleted by grouping.
+See [known issues](KNOWN_ISSUES.md) for real workspace transport, exact legacy timestamp limitations, sign-out semantics, production HTTPS/WSS, and live backend validation.
+Also see the main project's [KNOWN_ISSUES.md](../The-Downscale-Demon/KNOWN_ISSUES.md) for backend-shift, scheduler, and CRIU simulation limitations that affect both applications.

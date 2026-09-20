@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-The API defaults to `http://localhost:8000`. Set `VITE_API_BASE_URL` before starting/building to override it; the WebSocket URL is derived from the same value. Default Vite development port is 5173. The backend allows localhost/127.0.0.1 origins on ports 5173 and 3000.
+The API defaults to `http://localhost:8000`. Set `VITE_API_BASE_URL` before starting/building to override it; the WebSocket URL is derived from the same value. Vite uses port 5173 with `strictPort: true`; a port conflict fails instead of selecting another port. The backend allows localhost/127.0.0.1 origins on ports 5173 and 3000.
 
 ## Features
 
@@ -25,7 +25,7 @@ Authentication is stored in React memory; refreshing requires sign-in. First Chi
 
 ## Relationship to the command center
 
-This is separate from `../The-Downscale-Demon/frontend/`, the admin command center served at http://localhost:3000. Provisioning and invitation management belong there. The September 20 responsive-card redesign changed that command center, not this portal's fleet list.
+This is separate from `../The-Downscale-Demon/frontend/`, the admin command center served at http://localhost:3000. Provisioning and invitation management belong there. The admin now has a larger sans-serif neutral/green design. This portal retains its dark theme and compact fleet list, while both apps share grouped snapshot-history behavior.
 
 Both apps use the same backend. On 2026-09-20 the local Docker database was cleaned of six demo instances and related snapshots/events. Employee `001` retained `hail mary` and `hail santa`; the administrator was preserved. These are existing local records, not defaults to recreate. An employee sees only authorized data. See the main project's README for the backup record.
 
@@ -37,9 +37,10 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright runs `tests/portal.spec.js` against a Vite server on port 5187 with API/WebSocket mocks. It covers authentication, invitations, workspace lifecycle, reconciliation, and first-admin signup. The suite was not rerun during the latest command-center UI/data change during that earlier fleet change.
+Playwright runs `tests/portal.spec.js` and `tests/demo.spec.js` against a Vite server on port 5187 with mocked API/WebSocket traffic. All 10 tests passed after the grouped-history change; both builds also passed during implementation. See [project status](PROJECT_STATUS.md) for scope and limitations. Application tests are not rerun for a documentation-only update.
 
 See [architecture](ARCHITECTURE.md), [status](PROJECT_STATUS.md), and [known issues](KNOWN_ISSUES.md).
+Also see the main project documentation at ../The-Downscale-Demon/README.md for complete context.
 
 ## Demo controls and snapshot vault
 
@@ -53,4 +54,12 @@ Validation for this update: production build passed; all 9 existing Playwright t
 
 ## Grouped snapshot history
 
-The vault now shows one card per instance in both apps. A snapshot-history dropdown lists retained captures newest first by actual creation time (legacy records use the known filename date), with the latest selected initially. Selecting an older capture updates the details without creating duplicate workspace cards. Main vault text is 16px, secondary labels are 14px, and workspace headings are 22px. Search matches workspace names, IDs, and filenames while retaining the full history dropdown. No snapshot records are deleted by grouping.
+The vault renders one card per instance. Its dropdown contains every retained snapshot for that instance, ordered newest first by actual creation time, with a filename-derived date fallback for legacy records. The newest snapshot is selected initially; selecting an older record updates its details. Equal or unknown timestamps use a stable snapshot-ID tie-breaker, not an invented capture order. Search matches names, instance IDs, and filenames while preserving each matching workspace's full dropdown history. Grouping does not delete records. Restore wakes the workspace rather than loading the selected historical memory image.
+
+The portal vault uses 16px main text, 14px secondary labels, and 22px workspace headings.
+
+## Missing demo controls or stale UI
+
+Open http://localhost:5173 for the employee portal; port 3000 is the admin command center. Use Ctrl + Shift + R if the old snapshot list or older interface remains visible, then sign in again because tokens are held in memory. The portal dev server uses port 5173 with `strictPort: true`, so a port conflict fails instead of silently choosing another port.
+
+Demo controls require an owned workspace and a backend response with `demo_available: true`. The portal shows **Demo controls unavailable** when the connected backend does not advertise this capability. Verify `VITE_API_BASE_URL`, and run the updated backend and worker with `DEMO_MODE=1` (already configured in the main Compose file). Recreate those services after environment/image changes; restarting only the browser cannot enable backend simulation.

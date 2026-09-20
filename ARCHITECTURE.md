@@ -26,10 +26,20 @@ The fleet socket sends `{token: access_token}` as its first frame. `FLEET_UPDATE
 
 The portal owns no database. It consumes the same API as the main repository's command center. Removing demo records from the live backend changes both clients' authorized results without introducing a client-side filter for employee `001`.
 
-`tests/portal.spec.js` uses Playwright with mocked REST and WebSocket traffic. `playwright.config.js` starts Vite on port 5187. Live API/CORS, scheduler behavior, and production deployment need separate verification.
+`tests/portal.spec.js` and `tests/demo.spec.js` use Playwright with mocked REST and WebSocket traffic. `playwright.config.js` starts Vite on port 5187. Live API/CORS, scheduler behavior, and production deployment need separate verification.
 
 ## Demo and vault components
 
 `src/components/DemoControls.jsx` holds local form drafts for one owned workspace and submits `/api/instance/demo` through `App.jsx`. Only a successful server update changes the displayed demo toggle. `applyDemo()` reconciles the response, closes a terminated active session, and refetches fleet. Backend authorization and the `demo_available` capability govern access.
 
 `SnapshotVault.jsx` / `SnapshotVault.css` render searchable responsive cards using actual timestamps, optional demo timestamps, and a legacy date fallback. The active-session timezone label now comes from `fleet.timezone`. The clock override lives in the shared backend database, not browser storage; API and Celery use it consistently. Expiry remains based on real time.
+
+## Grouping, styling, and development server
+
+The vault renders one card per instance. Its dropdown contains every retained snapshot for that instance, ordered newest first by actual creation time, with a filename-derived date fallback for legacy records. The newest snapshot is selected initially; selecting an older record updates its details. Equal or unknown timestamps use a stable snapshot-ID tie-breaker, not an invented capture order. Search matches names, instance IDs, and filenames while preserving each matching workspace's full dropdown history. Grouping does not delete records. Restore wakes the workspace rather than loading the selected historical memory image.
+
+The server returns a flat list; `SnapshotVault` groups by `instance_id` and keeps selection state per group. The portal does not supply `onRestore`; starting a workspace remains in the owned-workspace picker. The admin version receives a workspace-wake callback, not a snapshot-ID restore operation.
+
+The portal uses its dark Tailwind theme plus component CSS. The admin's `command.css` overrides are not shared with this project. `vite.config.js` sets port 5173 and strict-port behavior. `App.jsx` shows an unavailable-demo message if the backend lacks the capability, while `DemoControls` requires at least one owned instance.
+
+For full context on shared snapshot behavior and backend integration, see the main project's [Architecture](ARCHITECTURE.md#snapshot-timestamps-and-demo-clock) and [Project Status](PROJECT_STATUS.md).
