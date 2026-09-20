@@ -1,3 +1,5 @@
+import SnapshotVault from './components/SnapshotVault';
+import DemoControls from './components/DemoControls';
 import { useEffect, useRef, useState } from 'react';
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
@@ -160,6 +162,14 @@ export default function App() {
     finally { setBusy(false); }
   }
 
+  async function applyDemo(body) {
+    const result = await request('/api/instance/demo', auth.access_token, body);
+    lifecycle.current += 1;
+    if (active.current === result.instance.id && !['running', 'idle'].includes(result.instance.state)) endSession();
+    setFleet(await request('/api/instances', auth.access_token));
+    return result;
+  }
+
   const owned = fleet?.fleet.filter(i => i.owner === auth?.user.id) || [];
   return (
     <main className="min-h-screen bg-slate-900 text-slate-100 font-mono flex items-center justify-center p-6">
@@ -179,10 +189,12 @@ export default function App() {
           </form>
         ) : <>
           <div className="text-sm text-slate-300">{auth.user.name} ({auth.user.id}) · {roles[auth.user.role] || auth.user.role}<p className="text-xs mt-2">Fleet updates: {connection}</p></div>
+          {fleet?.demo_available && <DemoControls instances={owned} timezone={fleet.timezone || 'UTC'} onApply={applyDemo}/>}
+          {fleet && !fleet.demo_available && <section className="border border-slate-500 rounded-lg p-4" aria-label="Demo controls unavailable"><h2 className="font-bold">Demo controls unavailable</h2><p className="text-sm text-slate-300 mt-2">The connected backend has not enabled simulation. Start the updated demo backend, then refresh this portal.</p></section>}
           {session ? <div className="space-y-3 border border-emerald-600 p-4">
             <h2 className="text-emerald-400 font-bold">DEV SANDBOX ACTIVE</h2>
             <p>{session.instance_name} ({session.instance_id})</p>
-            <p>Shift: {session.shift} · Asia/Kolkata</p>
+            <p>Shift: {session.shift} · {fleet?.timezone || 'UTC'}</p>
             <button onClick={logout} disabled={busy} className={button}>LOGOUT & HIBERNATE</button>
           </div> : <form onSubmit={submit} className="space-y-3">
             <label className="block">Your workspace<select required className={field} value={selected} onChange={e => setSelected(e.target.value)}><option value="">Select workspace</option>{owned.map(i => <option key={i.id} value={i.id}>{i.name} · {i.state} · {i.shift}</option>)}</select></label>
@@ -193,9 +205,9 @@ export default function App() {
           </form>}
           {fleet && <>
             <h2 className="font-bold">Authorized fleet</h2>
-            <ul className="space-y-2 text-sm">{fleet.fleet.map(i => <li key={i.id} className="p-3 bg-slate-950 rounded">{i.name} · {i.id} · {i.state}<p className="text-slate-400">{i.owner} · {i.type} · {i.shift}</p>{i.anomaly && <p className="text-red-300">Off-Hours Threat</p>}</li>)}</ul>
+            <ul className="space-y-2 text-sm">{fleet.fleet.map(i => <li key={i.id} className="p-3 bg-slate-950 rounded">{i.name} · {i.id} · {i.state}<p className="text-slate-400">{i.owner} · {i.type} &middot; {i.shift} &middot; CPU {i.cpu}%{i.demo_enabled && <span className="text-violet-300"> &middot; Demo active</span>}</p>{i.anomaly && <p className="text-red-300">Off-Hours Threat</p>}</li>)}</ul>
             <p className="text-xs text-slate-400">{fleet.analytics.currency || "USD"} current-state projections: compute ${fleet.analytics.compute_hourly}/hour | compute ${fleet.analytics.compute_daily}/day | snapshots ${fleet.analytics.snapshot_monthly}/month | total ${fleet.analytics.total_daily}/day | net savings ${fleet.analytics.daily_savings}/day. Billing basis: {fleet.analytics.billing_basis}.</p>
-            <details className="text-sm"><summary>Retained snapshots ({fleet.snapshots.length})</summary><p className="text-xs text-slate-400 my-2">CRIU is simulated. Snapshots persist after restore and continue to incur storage charges.</p><ul>{fleet.snapshots.map(s => <li key={s.id} className="break-all">{s.filename} · {s.size_mb} MiB</li>)}</ul></details>
+            <SnapshotVault snapshots={fleet.snapshots} fleet={fleet.fleet} timezone={fleet.timezone || 'UTC'} dark/>
           </>}
         </>}
       </section>

@@ -1,0 +1,22 @@
+.demo-panel { margin: 24px 0; padding: 20px; border: 1px solid #64748b; border-radius: 12px; background: #0f172a; }
+.demo-panel header { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.demo-panel h2 { font-size: 18px; font-weight: 800; margin-bottom: 6px; }
+.demo-panel header p, .demo-help { font-size: 12px; color: #cbd5e1; line-height: 1.7; }
+.demo-help { display: block; margin: 10px 0; }
+.demo-badge { border: 1px solid #a78bfa; border-radius: 20px; color: #ddd6fe; padding: 5px 9px; font-size: 10px; align-self: flex-start; }
+.demo-panel label { display: block; font-size: 12px; }
+.demo-panel :is(input:not([type=checkbox]),select) { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 10px; border: 1px solid #64748b; border-radius: 6px; background: #1e293b; color: white; color-scheme: dark; min-width: 0; }
+.demo-panel label.demo-toggle { display: flex; align-items: center; gap: 12px; margin: 20px 0 10px; font-weight: 700; }
+.demo-toggle input { width: 20px; height: 20px; accent-color: #a78bfa; }
+.demo-fields { display: grid; grid-template-columns: 2fr 1fr; gap: 16px; }
+.demo-fields > label:first-child { grid-column: 1 / -1; }
+.demo-panel fieldset { min-width: 0; }
+.demo-actions, .demo-presets { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.demo-panel button { padding: 10px 12px; border: 1px solid #64748b; border-radius: 6px; background: #1e293b; font-size: 12px; cursor: pointer; }
+.demo-actions button { background: #6d28d9; border-color: #8b5cf6; color: white; font-weight: 700; }
+.demo-panel button:hover { background: #475569; }
+.demo-panel :disabled { opacity: .55; cursor: wait; }
+.demo-panel :is(input,select,button):focus-visible { outline: 2px solid #c4b5fd; outline-offset: 3px; }
+.demo-feedback { color: #6ee7b7; font-size: 12px; margin-top: 16px; }
+.demo-error { color: #fca5a5; font-size: 12px; margin-top: 16px; }
+@media(max-width:480px) { .demo-fields { grid-template-columns: 1fr; } }

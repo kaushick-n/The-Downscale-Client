@@ -4,7 +4,7 @@ Source review: 2026-09-20.
 
 ## Application structure
 
-`src/main.jsx` mounts the React app. `src/App.jsx` contains authentication forms, workspace picker/session view, authorized fleet list, billing summary, snapshot list, and HTTP/WebSocket lifecycle. Styles are provided by local CSS and build-time Tailwind. The current app uses React `useState`, `useRef`, and `useEffect`; it has no React Router or React Query dependency and no separate LoginPage/FleetMonitor component hierarchy.
+`src/main.jsx` mounts the React app. `src/App.jsx` contains authentication forms, workspace picker/session view, authorized fleet list, billing summary, HTTP/WebSocket lifecycle, and integration of the demo and snapshot components described below. Styles are provided by local CSS and build-time Tailwind. The current app uses React `useState`, `useRef`, and `useEffect`; it has no React Router or React Query dependency and no separate LoginPage/FleetMonitor component hierarchy.
 
 ## Authentication and requests
 
@@ -27,3 +27,9 @@ The fleet socket sends `{token: access_token}` as its first frame. `FLEET_UPDATE
 The portal owns no database. It consumes the same API as the main repository's command center. Removing demo records from the live backend changes both clients' authorized results without introducing a client-side filter for employee `001`.
 
 `tests/portal.spec.js` uses Playwright with mocked REST and WebSocket traffic. `playwright.config.js` starts Vite on port 5187. Live API/CORS, scheduler behavior, and production deployment need separate verification.
+
+## Demo and vault components
+
+`src/components/DemoControls.jsx` holds local form drafts for one owned workspace and submits `/api/instance/demo` through `App.jsx`. Only a successful server update changes the displayed demo toggle. `applyDemo()` reconciles the response, closes a terminated active session, and refetches fleet. Backend authorization and the `demo_available` capability govern access.
+
+`SnapshotVault.jsx` / `SnapshotVault.css` render searchable responsive cards using actual timestamps, optional demo timestamps, and a legacy date fallback. The active-session timezone label now comes from `fleet.timezone`. The clock override lives in the shared backend database, not browser storage; API and Celery use it consistently. Expiry remains based on real time.

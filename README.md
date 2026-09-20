@@ -37,6 +37,20 @@ npx playwright install chromium
 npm test
 ```
 
-Playwright runs `tests/portal.spec.js` against a Vite server on port 5187 with API/WebSocket mocks. It covers authentication, invitations, workspace lifecycle, reconciliation, and first-admin signup. The suite was not rerun during the latest command-center UI/data change or documentation refresh.
+Playwright runs `tests/portal.spec.js` against a Vite server on port 5187 with API/WebSocket mocks. It covers authentication, invitations, workspace lifecycle, reconciliation, and first-admin signup. The suite was not rerun during the latest command-center UI/data change during that earlier fleet change.
 
 See [architecture](ARCHITECTURE.md), [status](PROJECT_STATUS.md), and [known issues](KNOWN_ISSUES.md).
+
+## Demo controls and snapshot vault
+
+With backend/worker `DEMO_MODE=1` (enabled in the main project's Compose), log in and select an owned workspace under **Demo controls**. Enable the toggle, set a date/time in the displayed server timezone, and apply. Use **Use shift start** to prepare an in-shift time before Start / Restore. On a running workspace, adjust CPU/activity, or use **Use shift end** and **Apply & evaluate now** to hibernate immediately and create a snapshot.
+
+CPU/activity changes apply to powered-on instances. Idle remains powered/billable; the current scheduler uses shifts, not an idle-CPU timeout. Demo CPU >= 90 outside shift flags an anomaly. Settings remain active per workspace until disabled; turning off demo restores the real clock and may hibernate a workspace outside its actual shift.
+
+Snapshot cards show actual creation time plus any simulated time, storage size, panes, reference, and expandable filename. Existing date-only records explicitly show that the time was not recorded. This remains a simulated workspace/CRIU app.
+
+Validation for this update: production build passed; all 9 existing Playwright tests and the new demo-flow test passed (mocked API/WebSocket responses). Desktop/mobile layouts were checked. Updated source is served by the local Vite app on port 5173.
+
+## Grouped snapshot history
+
+The vault now shows one card per instance in both apps. A snapshot-history dropdown lists retained captures newest first by actual creation time (legacy records use the known filename date), with the latest selected initially. Selecting an older capture updates the details without creating duplicate workspace cards. Main vault text is 16px, secondary labels are 14px, and workspace headings are 22px. Search matches workspace names, IDs, and filenames while retaining the full history dropdown. No snapshot records are deleted by grouping.

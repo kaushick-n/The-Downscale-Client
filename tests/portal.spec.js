@@ -72,7 +72,7 @@ test('invitation signup creates account, shows picker without waking; lifecycle 
   expect(state.frames[0]).toEqual({ token: 'test-token' });
   await page.getByRole('button', { name: 'LOGOUT & HIBERNATE' }).click();
   await expect(page.getByLabel('Your workspace')).toBeVisible();
-  await page.getByText('Retained snapshots (1)').click();
+  await page.getByText('Snapshot filename', {exact:true}).click();
   await expect(page.getByText(/SNAPSHOT_Workspace_20260914.IMG/)).toBeVisible();
   await expect(page.getByText(/total \$0.001667/)).toBeVisible();
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
