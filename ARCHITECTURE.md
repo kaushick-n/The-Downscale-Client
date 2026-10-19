@@ -1,47 +1,51 @@
-# Architecture
+# Employee station architecture
 
-Source review: 2026-09-20.
+The employee portal is a React client of the shared FastAPI service. It presents the employee-facing controls and data for the five-step cloud lifecycle; it does not independently operate AWS resources. The AWS proxy, SQS buffering, CRIU/EBS lifecycle, anomaly isolation, and FinOps projection are backend-owned and the AWS path remains opt-in. See the main project's [five-step architecture](../The-Downscale-Demon/ARCHITECTURE.md).
 
-This describes the employee portal's current API integration. It is not the AWS lifecycle controller: request buffering, CRIU/EBS hydration, and safe AWS shutdown are performed only by the backend's disabled-by-default opt-in path. FinOps WebSocket updates are scoped estimates, not live billed credits. See the main project's [target architecture](../The-Downscale-Demon/ARCHITECTURE.md) for the five-step flow.
+## Client structure
 
-## Application structure
+- `src/main.jsx` mounts `AppProvider` around the application.
+- `src/context/AppContext.jsx` owns in-memory authentication, bearer-authenticated REST calls, fleet refresh, WebSocket connection/reconnect, telemetry, ping latency, and inbox refresh signals.
+- `src/App.jsx` renders authentication, navigation, workspace actions, shift state, session details, communications, and the support-request flow.
+- `src/components/DemoControls.jsx` submits server-gated demo settings.
+- `src/components/SnapshotVault.jsx` groups and searches the server's checkpoint records.
+- `src/App.css` and component styles provide the dark, responsive employee station.
 
-`src/main.jsx` mounts the React app. `src/App.jsx` contains authentication forms, workspace picker/session view, authorized fleet list, billing summary, HTTP/WebSocket lifecycle, and integration of the demo and snapshot components described below. Styles are provided by local CSS and build-time Tailwind. The current app uses React `useState`, `useRef`, and `useEffect`; it has no React Router or React Query dependency and no separate LoginPage/FleetMonitor component hierarchy.
+The application uses React hooks and native `fetch`/`WebSocket`; it has no client-side database, sample fleet, or separately persisted session token.
 
-## Authentication and requests
+## Authentication and authorization
 
-`VITE_API_BASE_URL` defaults to `http://localhost:8000`. The request helper uses native fetch, adds bearer authentication, and converts FastAPI validation arrays into readable messages. Public authentication modes use `/api/auth/login`, `/api/auth/signup`, or `/api/auth/signup/chief-architect`. The client then calls `/api/me`. Tokens remain in memory, not localStorage.
+`VITE_API_BASE_URL` defaults to `http://localhost:8000`. The request helper sends bearer authentication and renders structured FastAPI validation details as readable errors. Public account operations use `/api/auth/login`, `/api/auth/signup`, and `/api/auth/signup/chief-architect`; the client then loads `/api/me`. Roles, teams, workspace assignments, shift policy, and permission decisions are server-authoritative.
 
-The server assigns roles and teams. First-admin signup is available only before any administrator exists. Invitations assign ordinary accounts and initially hibernated workspaces. HTTP 401 or WebSocket 4401 clears authentication and active workspace state.
+Tokens remain in memory. An HTTP 401 or WebSocket close code 4401 clears client authentication and fleet state. The portal does not treat clearing its local state as server-side token revocation.
 
-## Workspace lifecycle
+## Fleet and lifecycle actions
 
-The client fetches `/api/instances` and offers owned instances in the picker. `POST /api/instance/state` with `target_state: running` must succeed before opening the local session view. Off-hours denial remains in the picker. `POST /api/logout` hibernates the active instance before returning to the picker; it does not revoke the account token.
+`GET /api/instances` provides the authorized fleet, owner workspace data, timezone, demo capability, analytics, and checkpoint records. The workspace selector shows server-assigned workspaces only. Wake/restore submits `POST /api/instance/state` with `target_state: running`; the active session view is opened only after the server accepts the request. Pause submits `/api/logout`; saving session state uses the hibernation lifecycle and produces checkpoint metadata. These actions may be simulated locally; actual CRIU/EBS operations require the opt-in AWS lifecycle configuration.
 
-The session screen is a UI representation, not a real remote desktop or shell transport. Shift authority, permissions, anomaly flags, and analytics come from the backend.
+Workspace changes and refreshed fleet data reconcile the active session against the server's current instance state. A workspace that is no longer running/idle closes in the UI. Off-hours and role denials are shown as API errors rather than overridden client-side.
 
-## Live updates
+## Session inspection and telemetry
 
-The fleet socket sends `{token: access_token}` as its first frame. `FLEET_UPDATED` triggers a refetch. Matching `SESSION_TERMINATED` closes the active workspace and shows a notice. Refetched state also closes sessions that are no longer running/idle. Reconnect delay doubles from one second up to 15 seconds and resets on open; reconnect and window focus refetch the fleet. Refs/version checks guard stale refresh responses.
+`GET /api/instance/session-state/{instance_id}` provides current session-inspection availability, process output, tmux session names, and the latest checkpoint's RAM-history metadata. Live process inspection is available through SSM only when AWS lifecycle is enabled. Local mode returns an explicit unavailable status; the UI does not synthesize process, RAM, or tmux values. Checkpoint size, RAM footprint, and saved-pane counts are also shown as unrecorded when the backend cannot measure them.
 
-## Shared data and testing
+The employee app connects to `/ws/fleet` and sends `{token: access_token}` as the first frame. It sends a `PING` every 15 seconds and measures round-trip latency from the matching `PONG`. Scoped telemetry frames update CPU/memory values and observation timestamps; unavailable CloudWatch Agent memory values remain unavailable. Fleet and session events trigger REST reconciliation. Support and announcement events update the inbox, while `FINOPS_UPDATED` updates the server-provided cost projection.
 
-The portal owns no database. It consumes the same API as the main repository's command center. Removing demo records from the live backend changes both clients' authorized results without introducing a client-side filter for employee `001`.
+Reconnect delay grows from one second to a 15-second maximum and resets after a successful connection. Reconnect and window focus trigger a fleet refresh. Stale refresh errors are surfaced in the workspace rather than replaced by fabricated values.
 
-`tests/portal.spec.js` and `tests/demo.spec.js` use Playwright with mocked REST and WebSocket traffic. `playwright.config.js` starts Vite on port 5187. Live API/CORS, scheduler behavior, and production deployment need separate verification.
+## Inbox and helpdesk
 
-## Demo and vault components
+- `GET /api/employee/inbox` returns announcements visible to the employee, eligible shift notices, and completed responses to that employee's requests.
+- `POST /api/support/requests` creates a persisted overtime, storage, or issue request associated with the signed-in employee and an authorized workspace when selected.
+- `POST /api/support/requests/{request_id}/decision` is for Team Leads/Chief Architects and applies backend team scoping.
+- `POST /api/announcements` is for Team Leads/Chief Architects; Team Leads can announce only to their assigned team.
 
-`src/components/DemoControls.jsx` holds local form drafts for one owned workspace and submits `/api/instance/demo` through `App.jsx`. Only a successful server update changes the displayed demo toggle. `applyDemo()` reconciles the response, closes a terminated active session, and refetches fleet. Backend authorization and the `demo_available` capability govern access.
+The client reloads inbox data after relevant WebSocket events and after submitting a request. The API's team/owner checks remain the security boundary.
 
-`SnapshotVault.jsx` / `SnapshotVault.css` render searchable responsive cards using actual timestamps, optional demo timestamps, and a legacy date fallback. The active-session timezone label now comes from `fleet.timezone`. The clock override lives in the shared backend database, not browser storage; API and Celery use it consistently. Expiry remains based on real time.
+## FinOps and state provenance
 
-## Grouping, styling, and development server
+Cost figures come from the fleet API/WebSocket and are configured AWS On-Demand rate projections against the 24x7 baseline; they are not billed usage, actual credits, or AWS Cost Explorer results. Local demo changes are server-backed simulation controls, not live instance telemetry. Timers and ping age are derived client-side from server shift/connection data; workspace identity and resource values are not seeded in the UI.
 
-The vault renders one card per instance. Its dropdown contains every retained snapshot for that instance, ordered newest first by actual creation time, with a filename-derived date fallback for legacy records. The newest snapshot is selected initially; selecting an older record updates its details. Equal or unknown timestamps use a stable snapshot-ID tie-breaker, not an invented capture order. Search matches names, instance IDs, and filenames while preserving each matching workspace's full dropdown history. Grouping does not delete records. Restore wakes the workspace rather than loading the selected historical memory image.
+## Validation boundaries
 
-The server returns a flat list; `SnapshotVault` groups by `instance_id` and keeps selection state per group. The portal does not supply `onRestore`; starting a workspace remains in the owned-workspace picker. The admin version receives a workspace-wake callback, not a snapshot-ID restore operation.
-
-The portal uses its dark Tailwind theme plus component CSS. The admin's `command.css` overrides are not shared with this project. `vite.config.js` sets port 5173 and strict-port behavior. `App.jsx` shows an unavailable-demo message if the backend lacks the capability, while `DemoControls` requires at least one owned instance.
-
-For full context on shared snapshot behavior and backend integration, see the main project's [Architecture](ARCHITECTURE.md#snapshot-timestamps-and-demo-clock) and [Project Status](PROJECT_STATUS.md).
+`tests/portal.spec.js` and `tests/demo.spec.js` run Playwright against mocked REST and WebSocket traffic. They validate client flows and responsive behavior, not live CORS, a production WebSocket deployment, CloudWatch Agent metrics, SSM session inspection, AWS billing, or EC2/EBS/CRIU compatibility.

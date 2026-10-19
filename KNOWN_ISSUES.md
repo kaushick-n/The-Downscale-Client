@@ -1,33 +1,25 @@
-# Known issues and limitations
+# Employee station known issues and limitations
 
-Reviewed 2026-09-20. Replaces earlier placeholder issue entries.
+The employee station consumes the shared lifecycle API. It does not itself implement the AWS Edge Proxy, queue, CRIU/EBS operations, isolation, or billing. Backend AWS code paths are opt-in and have not been verified against a live AWS account. See the main project's [known issues](../The-Downscale-Demon/KNOWN_ISSUES.md) and [AWS readiness checklist](../The-Downscale-Demon/PROJECT_STATUS.md#checklist-switch-to-live-aws-100-credit-tier).
 
-The main backend includes opt-in mitigations for warm-up request failures (Edge Proxy & Buffering) and EBS detach/lock failures (Safe Downscale & Storage Unmount). The portal does not perform these actions itself, and the backend path has not been validated against live AWS. See the main project's [known issues](../The-Downscale-Demon/KNOWN_ISSUES.md) for acceptance conditions.
-
-| Area | Observed limitation | Follow-up |
+| Area | Current limitation | Follow-up |
 | --- | --- | --- |
-| Session view | Displays local session metadata, not an actual remote shell/desktop | Clarify scope if real workspace transport is added |
-| UI scope | Portal uses a dark theme and compact fleet list; admin uses a separate larger neutral/green design | Keep behavior consistent without assuming shared global styling |
-| Authentication persistence | Tokens are held only in memory; refresh signs the user out | Treat as current behavior when designing recovery |
-| Sign-out semantics | Account sign-out is local; workspace logout hibernates but does not revoke the bearer token | Add server revocation if needed |
-| Production transport | Default URL is HTTP and derives WS; Compose has no TLS | Configure HTTPS/WSS and allowed origins for deployment |
-| Test scope | Playwright uses mocked API/socket responses | Verify real accounts, CORS, scheduler cutoffs, and reconnect against a live backend |
-| Snapshot scope | Local backend CRIU/snapshots are simulated, with no download endpoint; the opt-in SSM/CRIU path is not live-validated | Do not imply downloadable process memory |
+| Remote workspace access | The session panel displays API/SSM inspection results; it is not an interactive shell, terminal transport, or remote desktop | Add a separately secured interactive transport if required |
+| Local checkpointing | Local mode creates simulated metadata only; it cannot preserve process memory, sockets, or tmux state | Validate the opt-in CRIU/EBS path on supported EC2/OS/kernel combinations |
+| Live process/telemetry | SSM process/tmux inspection and CloudWatch Agent memory require AWS configuration; missing readings are shown as unavailable | Validate agent installation, metric dimensions, SSM permissions, and returned data in a staging account |
+| Authentication persistence | Tokens are held only in memory; refresh requires sign-in | Decide whether a secure refresh/session strategy is required |
+| Sign-out semantics | Workspace logout hibernates the workspace but does not revoke the account bearer token | Add server-side token revocation if required |
+| Production transport | Local defaults use HTTP and derive WS; production TLS/WSS and allowed origins are deployment responsibilities | Configure HTTPS/WSS, secure origins, and deployment headers |
+| FinOps | Portal shows configured-rate estimates rather than billed usage or awarded credits | Reconcile with AWS Cost and Usage data and label any actual credit balance separately |
+| Test scope | Playwright mocks REST and WebSocket responses | Verify real account scoping, CORS, scheduler events, connection recovery, and AWS service behavior |
+| Accessibility | Dialog flows and responsive states are implemented, but focus trapping, Escape-to-close, and focus restoration have not been fully audited | Complete keyboard/screen-reader testing and remediate findings |
 
-The backend already honors `SHIFT_TIMEZONE`, performs conditional single-use invitation redemption, and offers first-admin signup. Earlier statements about missing implementations should not be treated as confirmed defects.
+## Data presentation
 
-Demo data was removed from the local shared Docker database on 2026-09-20. No portal-side demo filtering or employee-ID restriction is required. See the main project's README for the retained records and backup. For backend `DEMO_MODE`, shift cutoff, and snapshot limitations that affect the portal, see the main project's [KNOWN_ISSUES.md](../The-Downscale-Demon/KNOWN_ISSUES.md).
+Workspace names, state, CPU, memory, shift, announcements, requests, and cost estimates are supplied by the backend. Missing measurements and simulated checkpoint metadata are displayed as unavailable/not recorded rather than filled with sample values. Client-derived countdown and ping age are presentations of server-provided shift/connection data, not alternate authorization decisions.
 
-## Snapshot/demo behavior
+## Demo and checkpoint behavior
 
-Exact timestamps for old snapshots were never recorded; only their filename date can be shown. New snapshots have actual timestamps and optional demo timestamps. CPU/activity changes require a powered-on workspace, and do not wake it automatically. Local demo exposes CPU only; the opt-in AWS scheduler can also read CloudWatch Agent memory. Network thresholds and CPU-based idle timeouts are not implemented.
+Demo settings require backend `DEMO_MODE=1`, an owned workspace, and the server's `demo_available` capability. CPU/activity settings do not wake a hibernated workspace. The normal scheduler may apply shift cutoffs on its polling interval; **Apply & evaluate now** requests immediate evaluation.
 
-Demo settings persist in the backend until disabled. The regular scheduler can hibernate an out-of-shift demo workspace within 30 seconds; **Apply & evaluate now** makes it immediate. Disabling demo restores the real clock and checks the real shift. Account expiry is unaffected.
-
-Resolved in this update: hardcoded active-session timezone, compact snapshot-list layout, and missing mobile viewport metadata. The fleet list itself remains the existing portal design; snapshot cards now match the admin vault structure.
-
-## Grouped history and troubleshooting
-
-One card per workspace is intentional; all captures remain available in its dropdown. Legacy records from the same date have no reliable time ordering and use a stable snapshot-ID tie-breaker. Selection changes displayed details, not the historical memory image restored by the backend.
-
-The portal now reports unavailable demo capability explicitly. If the old interface remains visible, open port 5173, hard-refresh, and sign in again. A port conflict is surfaced by Vite's strict-port configuration. Check the configured API base and matching API/worker `DEMO_MODE=1` if simulation is unavailable. See [README](README.md#missing-demo-controls-or-stale-ui).
+Legacy snapshot timestamps cannot be recovered if only a filename date was retained. Selecting an old snapshot changes displayed metadata, not which image the backend restores. Checkpoint sizes, RAM footprints, and tmux panes remain unknown unless captured by a real lifecycle implementation.

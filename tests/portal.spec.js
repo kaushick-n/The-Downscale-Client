@@ -4,7 +4,7 @@ const user = { id: 'EMP-100', name: 'Alex', role: 'employee', team_id: 'platform
 const workspace = id => ({ id, name: `Workspace ${id}`, owner: user.id, state: 'hibernated', type: 't3.medium', shift: '22:00 - 06:00' });
 
 async function setup(page) {
-  const state = { fleet: [workspace('i-one'), workspace('i-two')], calls: [], sockets: [], frames: [], reads: 0, deny: false, expired: false, signupError: null };
+  const state = { fleet: [workspace('i-one'), workspace('i-two')], calls: [], sockets: [], frames: [], reads: 0, deny: false, expired: false, signupError: null, requests: [] };
   await page.route('http://localhost:8000/api/**', async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -19,10 +19,12 @@ async function setup(page) {
     expect(req.headers().authorization).toBe('Bearer test-token');
     if (state.expired) return reply(401, { detail: 'Session expired' });
     if (path === '/api/me') return reply(200, user);
+    if (path === '/api/employee/inbox') return reply(200, { announcements: [], requests: state.requests });
     if (path === '/api/instances') {
       state.reads++;
       return reply(200, { fleet: state.fleet, analytics: { compute_hourly: 0, compute_daily: 0, snapshot_monthly: 0.05, total_daily: 0.001667, daily_savings: 1.99, billing_basis: 'current-state projection; 30-day month' }, snapshots: [{ id: 'snapshot-uuid', instance_id: 'i-one', filename: 'SNAPSHOT_Workspace_20260914.IMG', size_mb: 1024, tmux_panes: 3 }] });
     }
+    if (path.startsWith('/api/instance/session-state/')) return reply(200, { available: false, reason: 'Live process and tmux inspection requires the AWS lifecycle connection.' });
     if (path === '/api/instance/state') {
       if (state.deny) return reply(403, { detail: 'SHIFT LOCKED' });
       state.fleet.find(i => i.id === body.instance_id).state = 'running';
@@ -31,6 +33,11 @@ async function setup(page) {
     if (path === '/api/logout') {
       state.fleet.find(i => i.id === body.instance_id).state = 'hibernated';
       return reply(200, { status: 'SUCCESS', new_state: 'hibernated' });
+    }
+    if (path === '/api/support/requests') {
+      const request = { id: 'request-1', owner_id: user.id, team_id: user.team_id, status: 'open', created_at: new Date().toISOString(), ...body };
+      state.requests.unshift(request);
+      return reply(201, request);
     }
     return reply(404, { detail: 'Unexpected endpoint' });
   });
@@ -45,7 +52,7 @@ async function setup(page) {
 async function login(page, password = 'valid-password-123') {
   await page.getByLabel('Employee ID').fill(user.id);
   await page.getByLabel('Password', { exact: true }).fill(password);
-  await page.getByRole('button', { name: 'SIGN IN', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Sign in to workspace', exact: true }).click();
 }
 
 async function start(page, id = 'i-two') {
@@ -55,12 +62,12 @@ async function start(page, id = 'i-two') {
 
 test('invitation signup creates account, shows picker without waking; lifecycle uses bearer', async ({ page }) => {
   const state = await setup(page);
-  await page.getByRole('button', { name: 'Sign Up', exact: true }).click();
+  await page.getByRole('button', { name: 'Invitation sign up', exact: true }).click();
   await page.getByLabel('Employee ID').fill(user.id);
   await page.getByLabel('Name', { exact: true }).fill('Alex');
   await page.getByLabel('Password', { exact: true }).fill('valid-password-123');
   await page.getByLabel('Invitation code').fill('invitation');
-  await page.getByRole('button', { name: 'SIGN UP', exact: true }).last().click();
+  await page.getByRole('button', { name: 'Create employee account', exact: true }).click();
   await expect(page.getByLabel('Your workspace')).toBeVisible();
   const signup = state.calls.find(c => c.path.endsWith('signup'));
   expect(signup.body).toEqual({ user_id: user.id, name: 'Alex', password: 'valid-password-123', invitation_token: 'invitation' });
@@ -70,11 +77,12 @@ test('invitation signup creates account, shows picker without waking; lifecycle 
   await expect(page.getByText('DEV SANDBOX ACTIVE')).toBeVisible();
   expect(state.calls.find(c => c.path === '/api/instance/state').body).toEqual({ instance_id: 'i-two', target_state: 'running' });
   expect(state.frames[0]).toEqual({ token: 'test-token' });
-  await page.getByRole('button', { name: 'LOGOUT & HIBERNATE' }).click();
+  await page.getByRole('button', { name: 'Manual Pause / Hibernate' }).click();
   await expect(page.getByLabel('Your workspace')).toBeVisible();
+  await page.getByRole('button', { name: 'Session Vault' }).click();
   await page.getByText('Snapshot filename', {exact:true}).click();
   await expect(page.getByText(/SNAPSHOT_Workspace_20260914.IMG/)).toBeVisible();
-  await expect(page.getByText(/total \$0.001667/)).toBeVisible();
+  await expect(page.getByText(/Total \$0.001667/)).toBeVisible();
   expect(await page.evaluate(() => [localStorage.length, sessionStorage.length])).toEqual([0, 0]);
 });
 
@@ -85,7 +93,7 @@ test('invalid credentials, off-hours denial and expired REST authentication', as
   await login(page);
   state.deny = true;
   await start(page);
-  await expect(page.getByRole('alert')).toHaveText('SHIFT LOCKED');
+  await expect(page.getByRole('alert')).toContainText('SHIFT LOCKED');
   await expect(page.getByText('DEV SANDBOX ACTIVE')).toHaveCount(0);
   state.expired = true;
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
@@ -122,12 +130,12 @@ for (const detail of ['Invitation expired', 'Invitation already used', 'Invitati
   test(`signup renders ${JSON.stringify(detail)}`, async ({ page }) => {
     const state = await setup(page);
     state.signupError = { status: Array.isArray(detail) ? 422 : 400, detail };
-    await page.getByRole('button', { name: 'Sign Up', exact: true }).click();
+    await page.getByRole('button', { name: 'Invitation sign up', exact: true }).click();
     await page.getByLabel('Employee ID').fill(user.id);
     await page.getByLabel('Name', { exact: true }).fill('Alex');
     await page.getByLabel('Password', { exact: true }).fill('valid-password-123');
     await page.getByLabel('Invitation code').fill('invalid-code');
-    await page.getByRole('button', { name: 'SIGN UP', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Create employee account', exact: true }).click();
     await expect(page.getByRole('alert')).toHaveText(Array.isArray(detail) ? 'password: String should have at least 12 characters' : detail);
   });
 }
@@ -144,6 +152,26 @@ test('empty fleet and live provisioning use only server workspaces', async ({ pa
   await expect(page.getByText('DEV SANDBOX ACTIVE')).toBeVisible();
 });
 
+test('employee support request is submitted through the helpdesk API', async ({ page }) => {
+  const state = await setup(page);
+  await login(page);
+  await page.getByRole('button', { name: 'Contact IT' }).click();
+  await page.getByLabel('Request type').selectOption('storage');
+  await page.getByLabel('Related workspace').selectOption('i-one');
+  await page.getByLabel('Subject').fill('Expand workspace storage');
+  await page.getByLabel('Details').fill('Please increase the workspace volume for build artifacts.');
+  await page.getByRole('button', { name: 'Send request' }).click();
+  await expect(page.getByRole('status')).toContainText('sent to the Team Lead queue');
+  expect(state.calls.find(call => call.path === '/api/support/requests').body).toEqual({
+    request_type: 'storage',
+    subject: 'Expand workspace storage',
+    details: 'Please increase the workspace volume for build artifacts.',
+    instance_id: 'i-one',
+  });
+  await page.getByRole('button', { name: 'Inbox & Helpdesk' }).click();
+  await expect(page.getByText('Expand workspace storage')).toBeVisible();
+});
+
 test('Chief Architect signup has no invitation and uses dedicated endpoint', async ({ page }) => {
   await setup(page);
   let payload;
@@ -151,12 +179,12 @@ test('Chief Architect signup has no invitation and uses dedicated endpoint', asy
     payload = route.request().postDataJSON();
     return route.fulfill({ status: 201, json: { access_token: 'test-token', user: { ...user, role: 'admin' } } });
   });
-  await page.getByRole('button', { name: 'Chief Architect Sign Up' }).click();
+  await page.getByRole('button', { name: 'Chief Architect setup' }).click();
   await expect(page.getByLabel('Invitation code')).toHaveCount(0);
   await page.getByLabel('Name', { exact: true }).fill('Chief');
   await page.getByLabel('Chief Architect ID').fill('CHIEF-1');
   await page.getByLabel('Password', { exact: true }).fill('test-password-123');
-  await page.getByRole('button', { name: 'CREATE CHIEF ARCHITECT ACCOUNT' }).click();
+  await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('status')).toContainText('Chief Architect account created');
   expect(payload).toEqual({ user_id: 'CHIEF-1', name: 'Chief', password: 'test-password-123' });
 });

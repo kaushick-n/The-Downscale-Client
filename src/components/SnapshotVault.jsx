@@ -31,7 +31,7 @@ export default function SnapshotVault({snapshots = [], fleet = [], onRestore, bu
         <dl className="snapshot-meta">
           <div className="snapshot-time"><dt>Created</dt><dd>{s.created_at ? <time dateTime={s.created_at}>{dateTime(s.created_at)}</time> : <>{s.legacy_date || 'Date unavailable'} <span className="vault-muted">/ time not recorded</span></>}</dd></div>
           {s.simulated_at && <div className="snapshot-time"><dt>Demo date &amp; time</dt><dd><time dateTime={s.simulated_at}>{dateTime(s.simulated_at)}</time></dd></div>}
-          <div><dt>Snapshot size</dt><dd>{s.size_mb} MiB</dd></div><div><dt>Saved panes</dt><dd>{s.tmux_panes}</dd></div><div><dt>Snapshot reference</dt><dd className="snapshot-reference" title={s.id}>{s.id}</dd></div>
+          <div><dt>Snapshot size</dt><dd>{s.size_mb == null ? 'Not recorded' : `${s.size_mb} MiB`}</dd></div><div><dt>Saved panes</dt><dd>{s.tmux_panes == null ? 'Not recorded' : s.tmux_panes}</dd></div><div><dt>Snapshot reference</dt><dd className="snapshot-reference" title={s.snapshot_ref || s.id}>{s.snapshot_ref || s.id}</dd></div>
         </dl>
         <details className="snapshot-file"><summary>Snapshot filename</summary><code>{s.filename}</code></details>
         {onRestore && <footer><button type="button" disabled={busy || !instance || ['running','idle'].includes(instance.state)} onClick={() => onRestore(s.instance_id)}>{['running','idle'].includes(instance?.state) ? 'Workspace running' : 'Restore workspace'}</button></footer>}

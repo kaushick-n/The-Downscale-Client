@@ -1,37 +1,34 @@
-# Project status
+# Employee station project status
 
-Reviewed 2026-09-20 against current source and recorded implementation checks.
+Status is based on the implemented portal and backend API contract. The employee station is a client of the main project's five-step lifecycle; its AWS execution path remains disabled by default and has no live-account acceptance evidence.
 
-## Relationship to the five-step roadmap
+## Implemented employee experience
 
-The portal's authentication, workspace picker, shift responses, WebSocket reconciliation, snapshot display, and cost UI integrate with the main project's pipeline. The portal consumes `FINOPS_UPDATED` payloads on the existing Fleet WebSocket. Backend AWS Edge Proxy, SQS, CRIU/EBS, downscale, and anomaly-isolation calls are opt-in and unvalidated against live AWS; displayed savings remain estimates, not credits. See the main project's [roadmap status](../The-Downscale-Demon/PROJECT_STATUS.md).
+- Responsive dark enterprise layout with Overview, Workspaces, Inbox & requests, and Session history navigation.
+- Server-provided workspace switcher, status badges, shift state/countdown, lifecycle actions, and runtime display.
+- Bearer-authenticated REST integration and a reconnecting Fleet WebSocket in `AppContext`.
+- Ping/pong latency, backend telemetry readings, connection state, and explicit unavailable states for missing CloudWatch/SSM data.
+- Session inspection through the session-state API when SSM is enabled; local mode is clearly reported as unavailable.
+- Backend announcements, shift-ending notices where applicable, persisted employee requests, and Team Lead request decisions.
+- Searchable checkpoint history, grouped by workspace and ordered by recorded timestamps; unknown size/RAM/pane metadata is not fabricated.
+- Backend-provided FinOps projections and demo-control capability gating.
 
-## Implemented
+## Shared backend/API integration
 
-- Login, invitation signup, first Chief Architect signup, and readable field errors.
-- In-memory bearer auth, HTTP/socket expiry handling, owned-workspace picker, and server-authorized start/restore.
-- Hibernation/logout, targeted session termination, exponential reconnect, and reconnect/focus reconciliation.
-- Server-provided fleet, billing estimates, timezone, and simulated snapshot metadata.
-- Per-workspace demo toggle, fixed date/time, CPU and running/idle controls, presets, and immediate evaluation.
-- Visible unavailable-demo feedback when the connected backend does not advertise simulation.
-- Grouped snapshot history: one card per instance, newest-first dropdown, selection of older captures, search, actual/demo timestamp distinction, and legacy date-only fallback.
-- Larger snapshot text, mobile viewport metadata, and strict development port 5173.
+The portal consumes the shared identity, team, shift, fleet, lifecycle, checkpoint, helpdesk, announcement, and telemetry APIs. Employee and Team Lead authorization is enforced by the backend. The API additions and WebSocket message contracts are detailed in the main project's [integration report](../The-Downscale-Demon/INTEGRATION_REPORT.md).
 
-## UI scope
+## Current boundaries
 
-This portal retains its dark theme and existing fleet list. The main project's command center has the separate larger sans-serif, neutral/green design, structured shift rows, and savings-first analytics. Snapshot grouping works in both apps; the admin redesign does not replace the portal theme.
+- The session panel is a status/inspection view, not an interactive remote terminal or desktop.
+- Local checkpoint actions persist simulated records; they do not produce CRIU memory images or preserve actual process memory, sockets, or tmux state.
+- SSM process inspection, CloudWatch Agent memory readings, Edge Proxy/SQS buffering, EC2/EBS lifecycle actions, and anomaly isolation require AWS configuration and have not been validated against a live account.
+- WebSocket FinOps values are configured-rate estimates, not AWS-issued credits or actual invoice savings.
+- Browser tests mock API and socket traffic; deployment CORS/TLS/WSS and live backend behavior remain separate acceptance work.
 
-## Recorded validation
+## Recorded verification
 
-The portal production build passed. All 10 Playwright tests passed together after grouped snapshot history was implemented. The demo test checks newest-first dropdown values, switching to legacy metadata, simulation requests, session cutoff, search, disabling demo, and desktop/mobile overflow. Existing cases cover authentication, invitations, expiry, and reconciliation. Browser traffic is mocked; these results are not a full live-account integration test.
-
-Separate backend work recorded 5 demo tests, 7 integration tests, and 1 first-admin test passing. A mobile-device viewport check also passed. These are prior implementation results; this documentation-only update checks Markdown rather than rerunning application suites.
-
-## Shared data history
-
-The September 20 cleanup preserved employee `001`, both `hail` workspaces, and the administrator while removing six legacy demo instances and related records. The later migration preserved the four snapshots present at that time. Those are historical counts, not a current inventory or provisioning restriction. Snapshot grouping does not delete stored snapshots.
+The current portal build and Playwright tests are verified by the latest implementation run. The suite exercises authentication, invitation and Chief Architect signup, session lifecycle, inbox/helpdesk submission, demo controls, and responsive overflow. Backend verification is run separately for `test_integration.py`, `test_demo.py`, and `test_chief_signup.py`, because their test modules configure isolated database environments. See the main project's [roadmap status](../The-Downscale-Demon/PROJECT_STATUS.md) for the latest backend test counts and AWS readiness gates.
 
 ## Remaining work
 
-See [known issues](KNOWN_ISSUES.md) for real workspace transport, exact legacy timestamp limitations, sign-out semantics, production HTTPS/WSS, and live backend validation.
-Also see the main project's [KNOWN_ISSUES.md](../The-Downscale-Demon/KNOWN_ISSUES.md) for backend-shift, scheduler, and CRIU simulation limitations that affect both applications.
+See [known issues](KNOWN_ISSUES.md) for transport, auth revocation, remote workspace access, live service acceptance, and accessibility limitations. The main project's [live AWS readiness checklist](../The-Downscale-Demon/PROJECT_STATUS.md#checklist-switch-to-live-aws-100-credit-tier) remains the deployment gate.

@@ -1,67 +1,53 @@
-# Employee Workspace Portal
+# Downscale Demon Employee Workspace Station
 
-React employee app for The Downscale Demon API. Documentation reviewed against source on 2026-09-20.
+The employee portal is a dark, responsive enterprise workspace for assigned development environments. It brings workspace lifecycle controls, shift status, operational telemetry, checkpoint history, team announcements, and helpdesk requests into one authenticated station. Workspace names, fleet state, telemetry, announcements, and requests are obtained from the shared backend; the client does not seed example workspaces or telemetry.
 
-This portal is the current client for the lifecycle API. The backend's AWS proxy/CRIU/EBS operations are disabled by default and not live-account validated; the portal receives scoped FinOps estimates over its existing Fleet WebSocket, not AWS-issued credits. The shared architecture and live-AWS readiness gate are documented in the main project's [README](../The-Downscale-Demon/README.md) and [project status](../The-Downscale-Demon/PROJECT_STATUS.md).
+The portal is a client of the five-step lifecycle API, not an implementation of the cloud control plane. Edge buffering, CRIU/EBS operations, isolation, and AWS lifecycle actions remain disabled by default and have not been validated against a live AWS account. Cost figures are configured-rate projections, not billed usage or credits. See the main project's [README](../The-Downscale-Demon/README.md), [architecture](../The-Downscale-Demon/ARCHITECTURE.md), and [live AWS readiness checklist](../The-Downscale-Demon/PROJECT_STATUS.md).
+
+## Employee station
+
+- Side navigation for Overview, Workspaces, Inbox & requests, and Session history.
+- Workspace switcher and server-authorized wake, pause/hibernate, and checkpoint actions.
+- Server shift-window status and a live countdown while an assigned shift is active.
+- Fleet-provided instance status, CPU, memory, connection latency, and session runtime.
+- A session stream that distinguishes live SSM process/tmux inspection from saved checkpoint metadata; unavailable values are shown as unavailable.
+- Backend announcements, shift notices, completed support-request responses, and Team Lead helpdesk requests.
+- Searchable, grouped checkpoint history with actual and simulated timestamps clearly separated.
+- Estimated FinOps summary supplied by the backend.
+
+The portal's default REST base is `http://localhost:8000`. Set `VITE_API_BASE_URL` before starting or building to override it; the WebSocket URL is derived from the same value. The backend allows localhost/127.0.0.1 origins on ports 5173 and 3000.
 
 ## Setup
 
-Start the backend from `../The-Downscale-Demon/` with Docker Compose, then run here:
+Start the backend from `../The-Downscale-Demon/` with Docker Compose, then run:
 
-```powershell
+```sh
 npm install
 npm run dev
 ```
 
-The API defaults to `http://localhost:8000`. Set `VITE_API_BASE_URL` before starting/building to override it; the WebSocket URL is derived from the same value. Vite uses port 5173 with `strictPort: true`; a port conflict fails instead of selecting another port. The backend allows localhost/127.0.0.1 origins on ports 5173 and 3000.
-
-## Features
-
-- Sign in, invitation signup, and first Chief Architect signup without an invitation.
-- Server-scoped fleet, owned-workspace picker, and start/restore after server authorization.
-- Workspace logout/hibernation and targeted session-termination handling.
-- WebSocket reconnect backoff, refetch on reconnect/focus, and expired-session handling.
-- Server-provided cost estimates and retained simulated snapshot metadata.
-
-Authentication is stored in React memory; refreshing requires sign-in. First Chief Architect signup only succeeds when no administrator exists. Ordinary signup uses a manager/admin invitation. There are no default credentials.
+Vite listens on port 5173 with `strictPort: true`; a port conflict fails rather than silently selecting another port. Authentication tokens are held in React memory, so a page refresh requires sign-in. First Chief Architect signup only succeeds when no administrator exists. Employee signup requires a single-use invitation. There are no default credentials.
 
 ## Relationship to the command center
 
-This is separate from `../The-Downscale-Demon/frontend/`, the admin command center served at http://localhost:3000. Provisioning and invitation management belong there. The admin now has a larger sans-serif neutral/green design. This portal retains its dark theme and compact fleet list, while both apps share grouped snapshot-history behavior.
+This application is separate from `../The-Downscale-Demon/frontend/`, the admin command center served at http://localhost:3000. Provisioning and invitation management belong there. Both applications use the same API and authorization rules, but the employee station has its own dark visual system and employee-focused navigation.
 
-Both apps use the same backend. On 2026-09-20 the local Docker database was cleaned of six demo instances and related snapshots/events. Employee `001` retained `hail mary` and `hail santa`; the administrator was preserved. These are existing local records, not defaults to recreate. An employee sees only authorized data. See the main project's README for the backup record.
+## Demo controls and checkpoint history
+
+Demo controls require backend/worker `DEMO_MODE=1`, an owned workspace, and `demo_available: true` in the server response. Set a simulated date/time in the displayed server timezone, then apply it. On a running workspace, **Apply & evaluate now** can immediately evaluate the configured shift/CPU and create a simulated checkpoint. This local demo does not create a CRIU image. Its checkpoint size, RAM footprint, and process/pane metadata remain unreported unless the backend actually records them.
+
+The history groups records by workspace but retains each snapshot. Actual capture time and optional simulated time are separate; legacy date-only records explicitly say that the time was not recorded. Selecting an older record changes the displayed metadata; it does not select an older memory image for restore.
 
 ## Build and test
 
-```powershell
+```sh
 npm run build
 npx playwright install chromium
 npm test
 ```
 
-Playwright runs `tests/portal.spec.js` and `tests/demo.spec.js` against a Vite server on port 5187 with mocked API/WebSocket traffic. All 10 tests passed after the grouped-history change; both builds also passed during implementation. See [project status](PROJECT_STATUS.md) for scope and limitations. Application tests are not rerun for a documentation-only update.
+Playwright runs `tests/portal.spec.js` and `tests/demo.spec.js` against a Vite server on port 5187 with mocked REST/WebSocket traffic. See [architecture](ARCHITECTURE.md), [project status](PROJECT_STATUS.md), and [known issues](KNOWN_ISSUES.md) for API contracts, current verification, and production limitations. Backend API additions are described in the main project's [integration report](../The-Downscale-Demon/INTEGRATION_REPORT.md).
 
-See [architecture](ARCHITECTURE.md), [status](PROJECT_STATUS.md), and [known issues](KNOWN_ISSUES.md).
-Also see the main project documentation at ../The-Downscale-Demon/README.md for complete context.
+## Troubleshooting
 
-## Demo controls and snapshot vault
-
-With backend/worker `DEMO_MODE=1` (enabled in the main project's Compose), log in and select an owned workspace under **Demo controls**. Enable the toggle, set a date/time in the displayed server timezone, and apply. Use **Use shift start** to prepare an in-shift time before Start / Restore. On a running workspace, adjust CPU/activity, or use **Use shift end** and **Apply & evaluate now** to hibernate immediately and create a snapshot.
-
-CPU/activity changes apply to powered-on instances. Idle remains powered/billable; the current scheduler uses shifts, not an idle-CPU timeout. Demo CPU >= 90 outside shift flags an anomaly. Settings remain active per workspace until disabled; turning off demo restores the real clock and may hibernate a workspace outside its actual shift.
-
-Snapshot cards show actual creation time plus any simulated time, storage size, panes, reference, and expandable filename. Existing date-only records explicitly show that the time was not recorded. This remains a simulated workspace/CRIU app.
-
-Validation for this update: production build passed; all 9 existing Playwright tests and the new demo-flow test passed (mocked API/WebSocket responses). Desktop/mobile layouts were checked. Updated source is served by the local Vite app on port 5173.
-
-## Grouped snapshot history
-
-The vault renders one card per instance. Its dropdown contains every retained snapshot for that instance, ordered newest first by actual creation time, with a filename-derived date fallback for legacy records. The newest snapshot is selected initially; selecting an older record updates its details. Equal or unknown timestamps use a stable snapshot-ID tie-breaker, not an invented capture order. Search matches names, instance IDs, and filenames while preserving each matching workspace's full dropdown history. Grouping does not delete records. Restore wakes the workspace rather than loading the selected historical memory image.
-
-The portal vault uses 16px main text, 14px secondary labels, and 22px workspace headings.
-
-## Missing demo controls or stale UI
-
-Open http://localhost:5173 for the employee portal; port 3000 is the admin command center. Use Ctrl + Shift + R if the old snapshot list or older interface remains visible, then sign in again because tokens are held in memory. The portal dev server uses port 5173 with `strictPort: true`, so a port conflict fails instead of silently choosing another port.
-
-Demo controls require an owned workspace and a backend response with `demo_available: true`. The portal shows **Demo controls unavailable** when the connected backend does not advertise this capability. Verify `VITE_API_BASE_URL`, and run the updated backend and worker with `DEMO_MODE=1` (already configured in the main Compose file). Recreate those services after environment/image changes; restarting only the browser cannot enable backend simulation.
+Open http://localhost:5173 for the employee station; port 3000 is the admin command center. Hard-refresh if old assets remain visible, then sign in again because tokens are held in memory. If demo controls are unavailable, verify `VITE_API_BASE_URL` and that the API and worker both use `DEMO_MODE=1`.

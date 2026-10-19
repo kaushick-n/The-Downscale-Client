@@ -12,7 +12,9 @@ test('demo controls apply time and metrics, immediate cutoff updates session and
     if(path==='/api/auth/login')return reply({access_token:'demo-test',user});
     expect(req.headers().authorization).toBe('Bearer demo-test');
     if(path==='/api/me')return reply(user);
+    if(path==='/api/employee/inbox')return reply({announcements:[],requests:[]});
     if(path==='/api/instances')return reply({fleet:[instance],snapshots,analytics:{},timezone:'Asia/Kolkata',demo_available:true});
+    if(path.startsWith('/api/instance/session-state/'))return reply({available:false,reason:'Live process and tmux inspection requires the AWS lifecycle connection.'});
     if(path==='/api/instance/state')return reply({status:'SUCCESS'});
     if(path==='/api/instance/demo'){
       calls.push(body);
@@ -27,7 +29,7 @@ test('demo controls apply time and metrics, immediate cutoff updates session and
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('/');
   await page.getByLabel('Employee ID').fill('001');await page.getByLabel('Password',{exact:true}).fill('demo-password');
-  await page.getByRole('button',{name:'SIGN IN',exact:true}).last().click();
+  await page.getByRole('button',{name:'Sign in to workspace',exact:true}).click();
   await page.getByLabel('Your workspace').selectOption(instance.id);await page.getByRole('button',{name:'START / RESTORE'}).click();
   await expect(page.getByText('DEV SANDBOX ACTIVE')).toBeVisible();
   await page.getByRole('switch',{name:'Enable demo for this workspace'}).click();
@@ -38,6 +40,7 @@ test('demo controls apply time and metrics, immediate cutoff updates session and
   await page.getByRole('button',{name:'Apply & evaluate now'}).click();
   await expect(page.getByLabel('Your workspace')).toBeVisible();
   expect(calls.at(-1)).toMatchObject({instance_id:'i-demo',enabled:true,simulated_time:'2026-09-20T18:00',cpu:99.8,evaluate_now:true});
+  await page.getByRole('button',{name:'Session Vault'}).click();
   await expect(page.locator('.snapshot-card')).toHaveCount(1);
   const history = page.getByRole('combobox', {name:'Snapshot history for hail mary'});
   await expect(history).toHaveValue('new-one');
@@ -53,6 +56,7 @@ test('demo controls apply time and metrics, immediate cutoff updates session and
     await page.setViewportSize({width,height:900});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   }
+  await page.getByRole('button',{name:'Overview'}).click();
   await page.getByRole('switch',{name:'Enable demo for this workspace'}).click();
   await expect(page.getByText('REAL CLOCK',{exact:true})).toBeVisible();expect(calls.at(-1).enabled).toBe(false);
   expect(errors).toEqual([]);
