@@ -44,7 +44,7 @@ The client reloads inbox data after relevant WebSocket events and after submitti
 
 ## FinOps and state provenance
 
-Cost figures come from the fleet API/WebSocket and are configured AWS On-Demand rate projections against the 24x7 baseline; they are not billed usage, actual credits, or AWS Cost Explorer results. Local demo changes are server-backed simulation controls, not live instance telemetry. Timers and ping age are derived client-side from server shift/connection data; workspace identity and resource values are not seeded in the UI.
+Cost figures come from the fleet API/WebSocket and are configured AWS On-Demand rate projections against the 24x7 baseline; they are not billed usage, actual credits, or AWS Cost Explorer results. Demo changes are server-backed simulation controls, not live instance telemetry. Timers and ping age are derived client-side from server shift/connection data; workspace identity and resource values are not seeded in the UI.
 
 ## Validation boundaries
 

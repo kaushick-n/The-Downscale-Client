@@ -142,17 +142,14 @@ function RequestModal({instances, selectedId, busy, onClose, onSubmit}) {
 }
 
 function EmployeeStation() {
-  const {auth, setAuth, fleet: fleetData, request, refreshFleet, connection, telemetry, pingMs, backgroundError, setBackgroundError, inboxRevision, localDemo} = useAppContext();
+  const {auth, setAuth, fleet: fleetData, request, refreshFleet, connection, telemetry, pingMs, backgroundError, setBackgroundError, inboxRevision} = useAppContext();
   const [mode, setMode] = useState('signin');
   const [name, setName] = useState('');
   const [invitation, setInvitation] = useState('');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
-  const [selected, setSelected] = useState(() => localDemo ? 'local-demo-alpha' : '');
-  const [activeSession, setActiveSession] = useState(() => localDemo ? {
-    instance_id: 'local-demo-alpha',
-    started_at: Date.now() - (3 * 60 * 60 * 1000 + 42 * 60 * 1000 + 15 * 1000),
-  } : null);
+  const [selected, setSelected] = useState('');
+  const [activeSession, setActiveSession] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -411,7 +408,6 @@ function EmployeeStation() {
           <div><p className="eyebrow">Personal workspace</p><h1>Good day, {auth.user.name.split(' ')[0]}</h1><p>Your assigned compute, shift and session status in one place.</p></div>
           <div className={`status-chip ${selectedInstance?.state === 'isolated' ? 'chip-danger' : ['running', 'idle'].includes(selectedInstance?.state) ? 'chip-good' : 'chip-muted'}`}><span className="status-dot"/>{statusText}</div>
         </section>
-        {localDemo && <p className="demo-mode-note">Local demo mode · sample workspace details and telemetry are illustrative, not live AWS resources.</p>}
         {fleetData && !owned.length && <section className="panel empty-workspaces"><h2>No owned workspaces are assigned yet</h2><p>Ask your Team Lead or Chief Architect to provision a workspace for your team.</p></section>}
         {owned.length > 0 && <section className="workspace-quick-grid" aria-label="Assigned workspace cards">
           {owned.map(instance => <button key={instance.id} type="button" className={`panel workspace-quick-card ${selectedInstance?.id === instance.id ? 'is-selected' : ''}`} aria-pressed={selectedInstance?.id === instance.id} onClick={() => setSelected(instance.id)}>
@@ -456,7 +452,7 @@ function EmployeeStation() {
 
         {selectedInstance && <TerminalPanel instance={selectedInstance} snapshot={latestSnapshot} telemetry={activeTelemetry} liveState={liveSessionState} loading={sessionStateBusy} connection={connection} onRefresh={refreshSessionState}/>}
         {fleetData?.demo_available && <details className="demo-disclosure" open><summary>Workspace simulation tools</summary><DemoControls instances={owned} timezone={fleetData.timezone || 'UTC'} onApply={applyDemo}/></details>}
-        {fleetData && !fleetData.demo_available && !localDemo && <p className="environment-note">Simulation tools are disabled by this environment.</p>}
+        {fleetData && !fleetData.demo_available && <p className="environment-note">Simulation tools are disabled by this environment.</p>}
       </div>}
 
       {tab === 'workspaces' && <div className="page-content">
