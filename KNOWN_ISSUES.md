@@ -2,6 +2,8 @@
 
 Reviewed 2026-09-20. Replaces earlier placeholder issue entries.
 
+The main backend includes opt-in mitigations for warm-up request failures (Edge Proxy & Buffering) and EBS detach/lock failures (Safe Downscale & Storage Unmount). The portal does not perform these actions itself, and the backend path has not been validated against live AWS. See the main project's [known issues](../The-Downscale-Demon/KNOWN_ISSUES.md) for acceptance conditions.
+
 | Area | Observed limitation | Follow-up |
 | --- | --- | --- |
 | Session view | Displays local session metadata, not an actual remote shell/desktop | Clarify scope if real workspace transport is added |
@@ -10,7 +12,7 @@ Reviewed 2026-09-20. Replaces earlier placeholder issue entries.
 | Sign-out semantics | Account sign-out is local; workspace logout hibernates but does not revoke the bearer token | Add server revocation if needed |
 | Production transport | Default URL is HTTP and derives WS; Compose has no TLS | Configure HTTPS/WSS and allowed origins for deployment |
 | Test scope | Playwright uses mocked API/socket responses | Verify real accounts, CORS, scheduler cutoffs, and reconnect against a live backend |
-| Snapshot scope | Backend CRIU/snapshots are simulated, with no download endpoint | Do not imply downloadable process memory |
+| Snapshot scope | Local backend CRIU/snapshots are simulated, with no download endpoint; the opt-in SSM/CRIU path is not live-validated | Do not imply downloadable process memory |
 
 The backend already honors `SHIFT_TIMEZONE`, performs conditional single-use invitation redemption, and offers first-admin signup. Earlier statements about missing implementations should not be treated as confirmed defects.
 
@@ -18,7 +20,7 @@ Demo data was removed from the local shared Docker database on 2026-09-20. No po
 
 ## Snapshot/demo behavior
 
-Exact timestamps for old snapshots were never recorded; only their filename date can be shown. New snapshots have actual timestamps and optional demo timestamps. CPU/activity changes require a powered-on workspace, and do not wake it automatically. Shift-based cutoff remains the current behavior; memory/network metrics and CPU-based idle timeouts are not implemented.
+Exact timestamps for old snapshots were never recorded; only their filename date can be shown. New snapshots have actual timestamps and optional demo timestamps. CPU/activity changes require a powered-on workspace, and do not wake it automatically. Local demo exposes CPU only; the opt-in AWS scheduler can also read CloudWatch Agent memory. Network thresholds and CPU-based idle timeouts are not implemented.
 
 Demo settings persist in the backend until disabled. The regular scheduler can hibernate an out-of-shift demo workspace within 30 seconds; **Apply & evaluate now** makes it immediate. Disabling demo restores the real clock and checks the real shift. Account expiry is unaffected.
 

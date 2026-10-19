@@ -3,7 +3,7 @@ import DemoControls from './components/DemoControls';
 import { useEffect, useRef, useState } from 'react';
 
 const API = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').replace(/\/$/, '');
-const roles = { employee: 'Employee', manager: 'Team Lead', admin: 'Chief Architect' };
+const roles = { employee: 'Employee', manager: 'Team Lead', team_lead: 'Team Lead', admin: 'Chief Architect', chief_architect: 'Chief Architect' };
 const field = 'w-full bg-slate-950 border border-slate-600 rounded p-2 text-sm';
 const button = 'rounded px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-bold';
 
@@ -87,6 +87,9 @@ export default function App() {
         if (disposed) return;
         let message;
         try { message = JSON.parse(event.data); } catch { return; }
+        if (message.analytics) {
+          setFleet(previous => previous ? { ...previous, analytics: message.analytics } : previous);
+        }
         if (message.type === 'SESSION_TERMINATED' && message.instance_id === active.current) {
           endSession();
           setNotice('Your workspace was hibernated or stopped. Its session has ended.');
@@ -135,6 +138,7 @@ export default function App() {
       } else {
         const workspace = fleet.fleet.find(i => i.id === selected && i.owner === auth.user.id);
         if (!workspace) throw new Error('Select an allocated workspace.');
+        if (workspace.state === 'isolated') throw new Error('This workspace is isolated; contact your Chief Architect.');
         await request('/api/instance/state', auth.access_token, { instance_id: selected, target_state: 'running' });
         lifecycle.current += 1;
         active.current = workspace.id;
@@ -192,7 +196,7 @@ export default function App() {
           {fleet?.demo_available && <DemoControls instances={owned} timezone={fleet.timezone || 'UTC'} onApply={applyDemo}/>}
           {fleet && !fleet.demo_available && <section className="border border-slate-500 rounded-lg p-4" aria-label="Demo controls unavailable"><h2 className="font-bold">Demo controls unavailable</h2><p className="text-sm text-slate-300 mt-2">The connected backend has not enabled simulation. Start the updated demo backend, then refresh this portal.</p></section>}
           {session ? <div className="space-y-3 border border-emerald-600 p-4">
-            <h2 className="text-emerald-400 font-bold">DEV SANDBOX ACTIVE</h2>
+            <h2 className="text-emerald-400 font-bold">{fleet?.aws_lifecycle_enabled ? 'WORKSPACE ACTIVE' : 'DEV SANDBOX ACTIVE'}</h2>
             <p>{session.instance_name} ({session.instance_id})</p>
             <p>Shift: {session.shift} · {fleet?.timezone || 'UTC'}</p>
             <button onClick={logout} disabled={busy} className={button}>LOGOUT & HIBERNATE</button>

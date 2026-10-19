@@ -2,6 +2,10 @@
 
 Reviewed 2026-09-20 against current source and recorded implementation checks.
 
+## Relationship to the five-step roadmap
+
+The portal's authentication, workspace picker, shift responses, WebSocket reconciliation, snapshot display, and cost UI integrate with the main project's pipeline. The portal consumes `FINOPS_UPDATED` payloads on the existing Fleet WebSocket. Backend AWS Edge Proxy, SQS, CRIU/EBS, downscale, and anomaly-isolation calls are opt-in and unvalidated against live AWS; displayed savings remain estimates, not credits. See the main project's [roadmap status](../The-Downscale-Demon/PROJECT_STATUS.md).
+
 ## Implemented
 
 - Login, invitation signup, first Chief Architect signup, and readable field errors.

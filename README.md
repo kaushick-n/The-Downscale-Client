@@ -2,6 +2,8 @@
 
 React employee app for The Downscale Demon API. Documentation reviewed against source on 2026-09-20.
 
+This portal is the current client for the lifecycle API. The backend's AWS proxy/CRIU/EBS operations are disabled by default and not live-account validated; the portal receives scoped FinOps estimates over its existing Fleet WebSocket, not AWS-issued credits. The shared architecture and live-AWS readiness gate are documented in the main project's [README](../The-Downscale-Demon/README.md) and [project status](../The-Downscale-Demon/PROJECT_STATUS.md).
+
 ## Setup
 
 Start the backend from `../The-Downscale-Demon/` with Docker Compose, then run here:

@@ -2,6 +2,8 @@
 
 Source review: 2026-09-20.
 
+This describes the employee portal's current API integration. It is not the AWS lifecycle controller: request buffering, CRIU/EBS hydration, and safe AWS shutdown are performed only by the backend's disabled-by-default opt-in path. FinOps WebSocket updates are scoped estimates, not live billed credits. See the main project's [target architecture](../The-Downscale-Demon/ARCHITECTURE.md) for the five-step flow.
+
 ## Application structure
 
 `src/main.jsx` mounts the React app. `src/App.jsx` contains authentication forms, workspace picker/session view, authorized fleet list, billing summary, HTTP/WebSocket lifecycle, and integration of the demo and snapshot components described below. Styles are provided by local CSS and build-time Tailwind. The current app uses React `useState`, `useRef`, and `useEffect`; it has no React Router or React Query dependency and no separate LoginPage/FleetMonitor component hierarchy.
