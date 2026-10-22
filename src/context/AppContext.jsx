@@ -1,10 +1,7 @@
 import {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react';
 
-const API = (
-  import.meta.env.VITE_API_URL || 
-  import.meta.env.VITE_API_BASE_URL || 
-  'http://3.27.211.126:8000'
-).replace(/\/$/, '');
+const API = 'http://3.27.211.126:8000';
+const FLEET_WS = 'ws://3.27.211.126:8000/ws/fleet';
 
 const AppContext = createContext(null);
 
@@ -15,6 +12,7 @@ export function AppProvider({children}) {
   const [telemetry, setTelemetry] = useState([]);
   const [pingMs, setPingMs] = useState(null);
   const [backgroundError, setBackgroundError] = useState('');
+  const [testPing, setTestPing] = useState(null);
   const [inbox, setInbox] = useState({announcements: [], requests: []});
   const [inboxRevision, setInboxRevision] = useState(0);
   const socketRef = useRef(null);
@@ -34,34 +32,40 @@ export function AppProvider({children}) {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      if (response.status === 401 && token) {
+      if (response.status === 401 && token && authRef.current?.access_token === token) {
         setAuth(null);
         setFleet(null);
         setTelemetry([]);
+        setPingMs(null);
       }
       const detail = Array.isArray(data.detail)
         ? data.detail.map(item => `${(item.loc || []).filter(part => part !== 'body').join('.')}: ${item.msg}`).join('; ')
         : data.detail;
-      throw new Error(typeof detail === 'string' ? detail : data.reason || `Request failed (${response.status})`);
+      const error = new Error(typeof detail === 'string' ? detail : data.reason || `Request failed (${response.status})`);
+      error.status = response.status;
+      throw error;
     }
     return data;
   }, [auth?.access_token]);
 
   const refreshFleet = useCallback(async () => {
     if (!authRef.current) return null;
-    const data = await request('/api/instances', undefined, authRef.current.access_token);
-    setFleet(data);
+    const token = authRef.current.access_token;
+    const data = await request('/api/instances', undefined, token);
+    if (authRef.current?.access_token !== token) return null;
+    const assignedFleet = Array.isArray(data.fleet) ? data.fleet : [];
+    setFleet({...data, fleet: assignedFleet});
     setBackgroundError('');
     setTelemetry(previous => {
       const byId = new Map(previous.map(item => [item.instance_id, item]));
-      return data.fleet.map(instance => ({
+      return assignedFleet.map(instance => ({
         instance_id: instance.id,
         state: instance.state,
         cpu_percent: instance.cpu,
         memory_mb: instance.memory_mb ?? null,
         memory_percent: instance.memory_percent ?? null,
         observed_at: instance.telemetry_updated_at ?? null,
-        ...byId.get(instance.id),
+        ...(Date.parse(byId.get(instance.id)?.observed_at) > Date.parse(instance.telemetry_updated_at) ? byId.get(instance.id) : {}),
       }));
     });
     return data;
@@ -72,7 +76,9 @@ export function AppProvider({children}) {
       setFleet(null);
       setTelemetry([]);
       setConnection('Disconnected');
+      setPingMs(null);
       setBackgroundError('');
+      setTestPing(null);
       socketRef.current?.close();
       socketRef.current = null;
       return undefined;
@@ -89,7 +95,7 @@ export function AppProvider({children}) {
     const connect = () => {
       if (disposed) return;
       setConnection('Connecting');
-      socket = new WebSocket(`${API.replace(/^http/, 'ws')}/ws/fleet`);
+      socket = new WebSocket(FLEET_WS);
       socketRef.current = socket;
       socket.onopen = () => {
         if (disposed) return;
@@ -111,6 +117,9 @@ export function AppProvider({children}) {
         if (message.type === 'PONG' && message.sent_at === requestSequence) {
           setPingMs(Math.max(0, Date.now() - message.sent_at));
         }
+        if (message.type === 'ADMIN_TEST_PING') {
+          setTestPing({id: message.details, actor: message.actor_id, receivedAt: new Date().toLocaleTimeString()});
+        }
         if (Array.isArray(message.telemetry)) setTelemetry(message.telemetry);
         if (['SUPPORT_REQUEST_CREATED', 'SUPPORT_REQUEST_UPDATED', 'ANNOUNCEMENT_CREATED'].includes(message.type)) {
           setInboxRevision(value => value + 1);
@@ -128,9 +137,11 @@ export function AppProvider({children}) {
           setFleet(null);
           setTelemetry([]);
           setConnection('Disconnected');
+          setTestPing(null);
           return;
         }
         setConnection('Reconnecting');
+        setPingMs(null);
         retry = setTimeout(connect, delay);
         delay = Math.min(delay * 2, 15000);
       };
@@ -152,6 +163,7 @@ export function AppProvider({children}) {
   return <AppContext.Provider value={{
     auth, setAuth, fleet, setFleet, request, refreshFleet, connection,
     telemetry, pingMs, setPingMs, backgroundError, setBackgroundError, inboxRevision,
+    testPing, setTestPing,
   }}>{children}</AppContext.Provider>;
 }
 

@@ -4,7 +4,7 @@ const user = { id: 'EMP-100', name: 'Alex', role: 'employee', team_id: 'platform
 const workspace = id => ({ id, name: `Workspace ${id}`, owner: user.id, state: 'hibernated', type: 't3.medium', shift: '22:00 - 06:00' });
 
 async function setup(page) {
-  const state = { fleet: [workspace('i-one'), workspace('i-two')], calls: [], sockets: [], frames: [], reads: 0, deny: false, expired: false, signupError: null, requests: [] };
+  const state = { fleet: [workspace('i-one'), workspace('i-two')], calls: [], sockets: [], frames: [], reads: 0, deny: null, expired: false, signupError: null, requests: [] };
   await page.route('http://localhost:8000/api/**', async route => {
     const req = route.request();
     const path = new URL(req.url()).pathname;
@@ -26,9 +26,9 @@ async function setup(page) {
     }
     if (path.startsWith('/api/instance/session-state/')) return reply(200, { available: false, reason: 'Live process and tmux inspection requires the AWS lifecycle connection.' });
     if (path === '/api/instance/state') {
-      if (state.deny) return reply(403, { detail: 'SHIFT LOCKED' });
-      state.fleet.find(i => i.id === body.instance_id).state = 'running';
-      return reply(200, { status: 'SUCCESS', new_state: 'running' });
+      if (state.deny) return reply(403, { detail: state.deny });
+      state.fleet.find(i => i.id === body.instance_id).state = body.target_state;
+      return reply(200, { status: 'SUCCESS', new_state: body.target_state });
     }
     if (path === '/api/logout') {
       state.fleet.find(i => i.id === body.instance_id).state = 'hibernated';
@@ -79,7 +79,8 @@ test('invitation signup creates account, shows picker without waking; lifecycle 
   expect(state.frames[0]).toEqual({ token: 'test-token' });
   await page.getByRole('button', { name: 'Manual Pause / Hibernate' }).click();
   await expect(page.getByLabel('Your workspace')).toBeVisible();
-  await page.getByRole('button', { name: 'Session Vault' }).click();
+  expect(state.calls.filter(c => c.path === '/api/instance/state').at(-1).body).toEqual({ instance_id: 'i-two', target_state: 'hibernated' });
+  await page.getByRole('button', { name: 'Session History' }).click();
   await page.getByText('Snapshot filename', {exact:true}).click();
   await expect(page.getByText(/SNAPSHOT_Workspace_20260914.IMG/)).toBeVisible();
   await expect(page.getByText(/Total \$0.001667/)).toBeVisible();
@@ -91,7 +92,7 @@ test('invalid credentials, off-hours denial and expired REST authentication', as
   await login(page, 'incorrect');
   await expect(page.getByRole('alert')).toHaveText('Invalid credentials');
   await login(page);
-  state.deny = true;
+  state.deny = 'SHIFT LOCKED';
   await start(page);
   await expect(page.getByRole('alert')).toContainText('SHIFT LOCKED');
   await expect(page.getByText('DEV SANDBOX ACTIVE')).toHaveCount(0);
@@ -144,12 +145,47 @@ test('empty fleet and live provisioning use only server workspaces', async ({ pa
   const state = await setup(page);
   state.fleet = [];
   await login(page);
-  await expect(page.getByText(/No owned workspaces/)).toBeVisible();
+  await expect(page.getByText('No workspaces returned')).toBeVisible();
   state.fleet = [workspace('i-provisioned')];
   state.sockets.at(-1).send(JSON.stringify({ type: 'FLEET_UPDATED', instance_id: 'i-provisioned' }));
   await expect(page.getByLabel('Your workspace').locator('option')).toHaveCount(2);
   await start(page, 'i-provisioned');
   await expect(page.getByText('DEV SANDBOX ACTIVE')).toBeVisible();
+});
+
+test('scoped fleet renders without an owner field and assignment denial is actionable', async ({ page }) => {
+  const state = await setup(page);
+  state.fleet = [{...workspace('i-assigned'), owner: undefined}];
+  await login(page);
+  await expect(page.getByRole('button', {name: /Workspace i-assigned/})).toBeVisible();
+  state.deny = 'Not authorized for this instance';
+  await start(page, 'i-assigned');
+  await expect(page.getByRole('alert')).toContainText('Check this workspace\'s assignment in the Admin Portal');
+  expect(state.calls.filter(c => c.path === '/api/instance/state').at(-1).body)
+    .toEqual({instance_id: 'i-assigned', target_state: 'running'});
+});
+
+test('socket telemetry updates the selected workspace metrics', async ({page}) => {
+  const state = await setup(page);
+  await login(page);
+  await page.getByLabel('Your workspace').selectOption('i-one');
+  state.sockets.at(-1).send(JSON.stringify({
+    type: 'TELEMETRY_UPDATED',
+    telemetry: [{instance_id: 'i-one', state: 'hibernated', cpu_percent: 42.5,
+      memory_mb: 1024, memory_percent: 50, observed_at: new Date().toISOString()}],
+  }));
+  await expect(page.getByLabel('Workspace telemetry')).toContainText('42.5%');
+  await expect(page.getByLabel('Workspace telemetry')).toContainText('1,024 MB');
+});
+
+test('admin test ping appears on the client dashboard', async ({page}) => {
+  const state = await setup(page);
+  await login(page);
+  await expect.poll(() => state.sockets.length).toBe(1);
+  state.sockets.at(-1).send(JSON.stringify({type: 'ADMIN_TEST_PING', actor_id: 'CA001', details: 'a1b2c3d4'}));
+  await expect(page.getByRole('status')).toContainText('Admin test ping a1b2c3d4 received from CA001');
+  await page.getByRole('button', {name: 'Dismiss test ping'}).click();
+  await expect(page.getByText(/Admin test ping a1b2c3d4/)).toHaveCount(0);
 });
 
 test('employee support request is submitted through the helpdesk API', async ({ page }) => {
@@ -168,7 +204,7 @@ test('employee support request is submitted through the helpdesk API', async ({ 
     details: 'Please increase the workspace volume for build artifacts.',
     instance_id: 'i-one',
   });
-  await page.getByRole('button', { name: 'Inbox & Helpdesk' }).click();
+  await page.getByRole('button', { name: 'Inbox & Requests' }).click();
   await expect(page.getByText('Expand workspace storage')).toBeVisible();
 });
 
