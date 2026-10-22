@@ -18,8 +18,10 @@ export function AppProvider({children}) {
   const socketRef = useRef(null);
   const authRef = useRef(auth);
   const inboxRef = useRef(inbox);
+  const fleetRef = useRef(fleet);
   authRef.current = auth;
   inboxRef.current = inbox;
+  fleetRef.current = fleet;
 
   const request = useCallback(async (path, body, token = auth?.access_token) => {
     const response = await fetch(`${API}${path}`, {
@@ -87,6 +89,7 @@ export function AppProvider({children}) {
     let socket;
     let retry;
     let pingTimer;
+    let activityTimer;
     let delay = 1000;
     let requestSequence = 0;
     const refresh = () => refreshFleet().catch(error => {
@@ -109,6 +112,17 @@ export function AppProvider({children}) {
           requestSequence = sentAt;
           socket.send(JSON.stringify({type: 'PING', sent_at: sentAt}));
         }, 15000);
+        const sendActivity = () => {
+          if (socket.readyState !== WebSocket.OPEN || auth.user?.role !== 'employee'
+              || document.visibilityState !== 'visible' || !document.hasFocus()) return;
+          for (const instance of fleetRef.current?.fleet || []) {
+            if (instance.owner === auth.user.id && ['running', 'idle'].includes(instance.state)) {
+              socket.send(JSON.stringify({type: 'ACTIVITY', instance_id: instance.id}));
+            }
+          }
+        };
+        sendActivity();
+        activityTimer = setInterval(sendActivity, 30000);
       };
       socket.onmessage = event => {
         if (disposed) return;
@@ -131,6 +145,7 @@ export function AppProvider({children}) {
       };
       socket.onclose = event => {
         clearInterval(pingTimer);
+        clearInterval(activityTimer);
         if (disposed) return;
         if (event.code === 4401) {
           setAuth(null);
@@ -154,6 +169,7 @@ export function AppProvider({children}) {
       disposed = true;
       clearTimeout(retry);
       clearInterval(pingTimer);
+      clearInterval(activityTimer);
       socket?.close();
       if (socketRef.current === socket) socketRef.current = null;
       window.removeEventListener('focus', refresh);
