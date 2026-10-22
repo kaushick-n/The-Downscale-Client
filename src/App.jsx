@@ -142,17 +142,14 @@ function RequestModal({instances, selectedId, busy, onClose, onSubmit}) {
 }
 
 function EmployeeStation() {
-  const {auth, setAuth, fleet: fleetData, request, refreshFleet, connection, telemetry, pingMs, backgroundError, setBackgroundError, inboxRevision, localDemo} = useAppContext();
+  const {auth, setAuth, fleet: fleetData, request, refreshFleet, connection, telemetry, pingMs, backgroundError, setBackgroundError, inboxRevision, testPing, setTestPing} = useAppContext();
   const [mode, setMode] = useState('signin');
   const [name, setName] = useState('');
   const [invitation, setInvitation] = useState('');
   const [userId, setUserId] = useState('');
   const [password, setPassword] = useState('');
-  const [selected, setSelected] = useState(() => localDemo ? 'local-demo-alpha' : '');
-  const [activeSession, setActiveSession] = useState(() => localDemo ? {
-    instance_id: 'local-demo-alpha',
-    started_at: Date.now() - (3 * 60 * 60 * 1000 + 42 * 60 * 1000 + 15 * 1000),
-  } : null);
+  const [selected, setSelected] = useState('');
+  const [activeSession, setActiveSession] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -164,8 +161,16 @@ function EmployeeStation() {
   const [liveSessionState, setLiveSessionState] = useState(null);
   const [sessionStateBusy, setSessionStateBusy] = useState(false);
 
+  useEffect(() => {
+    if (auth) return;
+    setActiveSession(null);
+    setSelected('');
+    setLiveSessionState(null);
+  }, [auth]);
+
   const fleet = fleetData?.fleet || [];
-  const owned = useMemo(() => fleet.filter(instance => instance.owner === auth?.user.id), [fleet, auth?.user.id]);
+  const owned = fleet;
+  const isArchitect = ['admin', 'chief_architect'].includes(auth?.user.role);
   const selectedInstance = owned.find(instance => instance.id === selected) || owned.find(instance => instance.id === activeSession?.instance_id) || null;
   const activeTelemetry = telemetry.find(item => item.instance_id === selectedInstance?.id);
   const latestSnapshot = useMemo(() => {
@@ -258,7 +263,14 @@ function EmployeeStation() {
       await request('/api/logout', {instance_id: activeSession.instance_id});
       setActiveSession(null);
     }
-    await request('/api/instance/state', {instance_id: target.id, target_state: 'running'});
+    try {
+      await request('/api/instance/state', {instance_id: target.id, target_state: 'running'});
+    } catch (wakeError) {
+      if (wakeError.status === 403 && !/shift locked/i.test(wakeError.message)) {
+        throw new Error(`${wakeError.message}. Check this workspace's assignment in the Admin Portal.`);
+      }
+      throw wakeError;
+    }
     await refreshFleet();
     setActiveSession({instance_id: target.id, started_at: Date.now()});
     setSelected(target.id);
@@ -270,13 +282,13 @@ function EmployeeStation() {
     setBusy(true);
     setError('');
     try {
-      await request('/api/logout', {instance_id: activeSession.instance_id});
+      await request('/api/instance/state', {instance_id: activeSession.instance_id, target_state: 'hibernated'});
       setActiveSession(null);
       await refreshFleet();
       await refreshInbox();
       setNotice('Workspace hibernated. Session state was saved when the lifecycle configuration supports snapshots.');
     } catch (pauseError) {
-      setError(pauseError.message);
+      setError(pauseError.status === 403 ? `${pauseError.message}. Check this workspace's assignment in the Admin Portal.` : pauseError.message);
     } finally {
       setBusy(false);
     }
@@ -292,7 +304,7 @@ function EmployeeStation() {
       await refreshFleet();
       setNotice('Session checkpoint request completed. Check Session history for saved metadata.');
     } catch (snapshotError) {
-      setError(snapshotError.message);
+      setError(snapshotError.status === 403 ? `${snapshotError.message}. Check this workspace's assignment in the Admin Portal.` : snapshotError.message);
     } finally {
       setBusy(false);
     }
@@ -405,14 +417,14 @@ function EmployeeStation() {
       {(error || backgroundError || notice) && <div className={`station-banner ${error || backgroundError ? 'banner-error' : 'banner-success'}`} role={error || backgroundError ? 'alert' : 'status'}>
         <span>{error || backgroundError || notice}</span><button type="button" aria-label="Dismiss notification" onClick={() => {setError(''); setBackgroundError(''); setNotice('');}}>×</button>
       </div>}
+      {testPing && <div className="station-banner banner-success" role="status"><span>Admin test ping {testPing.id} received from {testPing.actor} at {testPing.receivedAt}.</span><button type="button" aria-label="Dismiss test ping" onClick={() => setTestPing(null)}>×</button></div>}
 
       {tab === 'overview' && <div className="page-content">
         <section className="welcome-row">
           <div><p className="eyebrow">Personal workspace</p><h1>Good day, {auth.user.name.split(' ')[0]}</h1><p>Your assigned compute, shift and session status in one place.</p></div>
           <div className={`status-chip ${selectedInstance?.state === 'isolated' ? 'chip-danger' : ['running', 'idle'].includes(selectedInstance?.state) ? 'chip-good' : 'chip-muted'}`}><span className="status-dot"/>{statusText}</div>
         </section>
-        {localDemo && <p className="demo-mode-note">Local demo mode · sample workspace details and telemetry are illustrative, not live AWS resources.</p>}
-        {fleetData && !owned.length && <section className="panel empty-workspaces"><h2>No owned workspaces are assigned yet</h2><p>Ask your Team Lead or Chief Architect to provision a workspace for your team.</p></section>}
+        {fleetData && !owned.length && <section className="panel empty-workspaces"><h2>No workspaces returned</h2><p>{isArchitect ? 'The connected Demon server returned an empty fleet for this Chief Architect account. Check that the Admin Dashboard is connected to the same server.' : 'Ask your Team Lead or Chief Architect to assign a workspace to your account in the Admin Portal.'}</p></section>}
         {owned.length > 0 && <section className="workspace-quick-grid" aria-label="Assigned workspace cards">
           {owned.map(instance => <button key={instance.id} type="button" className={`panel workspace-quick-card ${selectedInstance?.id === instance.id ? 'is-selected' : ''}`} aria-pressed={selectedInstance?.id === instance.id} onClick={() => setSelected(instance.id)}>
             <span className={`status-tag tag-${instance.state}`}>{instance.state === 'isolated' ? 'QUARANTINED' : instance.state === 'stopped' ? 'HIBERNATED' : instance.state.toUpperCase()}</span>
@@ -456,12 +468,12 @@ function EmployeeStation() {
 
         {selectedInstance && <TerminalPanel instance={selectedInstance} snapshot={latestSnapshot} telemetry={activeTelemetry} liveState={liveSessionState} loading={sessionStateBusy} connection={connection} onRefresh={refreshSessionState}/>}
         {fleetData?.demo_available && <details className="demo-disclosure" open><summary>Workspace simulation tools</summary><DemoControls instances={owned} timezone={fleetData.timezone || 'UTC'} onApply={applyDemo}/></details>}
-        {fleetData && !fleetData.demo_available && !localDemo && <p className="environment-note">Simulation tools are disabled by this environment.</p>}
+        {fleetData && !fleetData.demo_available && <p className="environment-note">Simulation tools are disabled by this environment.</p>}
       </div>}
 
       {tab === 'workspaces' && <div className="page-content">
         <section className="page-heading"><div><p className="eyebrow">Assigned environments</p><h1>Your workspaces</h1><p>Switch environments from the selector or choose a workspace below.</p></div><button className="button button-primary" onClick={() => setRequestOpen(true)}>Request support</button></section>
-        {!owned.length && <section className="panel empty-workspaces"><h2>No assigned workspaces</h2><p>Contact your Team Lead to request an environment.</p></section>}
+        {!owned.length && <section className="panel empty-workspaces"><h2>{isArchitect ? 'No workspaces returned' : 'No assigned workspaces'}</h2><p>{isArchitect ? 'The connected Demon server returned an empty fleet for this Chief Architect account. Check that the Admin Dashboard is connected to the same server.' : 'Contact your Team Lead to request an environment.'}</p></section>}
         <div className="workspace-list">{owned.map(instance => <article className="panel workspace-list-card" key={instance.id}>
           <div className="list-card-main"><span className={`workspace-icon state-${instance.state}`}>⌘</span><div><h2>{instance.name}</h2><p>{instance.id} · {instance.type} · {instance.shift}</p></div><span className={`status-tag tag-${instance.state}`}>{instance.state === 'isolated' ? 'QUARANTINED' : instance.state.toUpperCase()}</span></div>
           <div className="list-card-stats"><span>CPU <strong>{instance.cpu ?? '—'}{instance.cpu == null ? '' : '%'}</strong></span><span>Memory <strong>{instance.memory_mb == null ? '—' : `${instance.memory_mb} MB`}</strong></span><span>Shift <strong>{instance.shift_active ? 'Active' : 'Scheduled'}</strong></span></div>

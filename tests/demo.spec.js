@@ -40,7 +40,7 @@ test('demo controls apply time and metrics, immediate cutoff updates session and
   await page.getByRole('button',{name:'Apply & evaluate now'}).click();
   await expect(page.getByLabel('Your workspace')).toBeVisible();
   expect(calls.at(-1)).toMatchObject({instance_id:'i-demo',enabled:true,simulated_time:'2026-09-20T18:00',cpu:99.8,evaluate_now:true});
-  await page.getByRole('button',{name:'Session Vault'}).click();
+  await page.getByRole('button',{name:'Session History'}).click();
   await expect(page.locator('.snapshot-card')).toHaveCount(1);
   const history = page.getByRole('combobox', {name:'Snapshot history for hail mary'});
   await expect(history).toHaveValue('new-one');
